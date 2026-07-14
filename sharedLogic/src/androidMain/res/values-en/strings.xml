@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="colombian_id_scanner_instruction">Align the document inside the frame</string>
+    <string name="colombian_id_scanner_permission_rationale">Camera access is required to scan the document. The image is processed on this device only: it is never stored or transmitted.</string>
+    <string name="colombian_id_scanner_grant_permission">Grant permission</string>
+    <string name="colombian_id_scanner_cancel">Cancel</string>
+</resources>
