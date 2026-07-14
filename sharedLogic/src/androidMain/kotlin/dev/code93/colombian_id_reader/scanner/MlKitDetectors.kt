@@ -38,7 +38,13 @@ internal class MlKitDetectors : AutoCloseable {
     suspend fun pdf417(image: InputImage): String? = try {
         barcodeUsed = true
         barcodeScanner.process(image).await()
-            .firstNotNullOfOrNull { it.rawValue }
+            .firstNotNullOfOrNull { barcode ->
+                // The cédula's PDF417 carries binary sections, so ML Kit's
+                // rawValue (text-only) is usually null. Decode the raw
+                // bytes as ISO-8859-1: a 1:1 byte-to-char mapping that
+                // preserves the ASCII fields the parser locates.
+                barcode.rawBytes?.toString(Charsets.ISO_8859_1) ?: barcode.rawValue
+            }
     } catch (e: Exception) {
         null
     }
