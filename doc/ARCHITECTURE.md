@@ -161,6 +161,22 @@ values.
 **Why:** Habeas Data (Ley 1581 de 2012). The original code logged names and ID
 numbers via `Log.d` — that pattern is explicitly removed.
 
+### D7 — Read the PDF417 payload as raw bytes, never as text
+
+**Decision:** Both platforms read the barcode's raw bytes (ML Kit
+`Barcode.rawBytes`, Vision `VNBarcodeObservation.payloadData`) decoded as
+ISO-8859-1 (a 1:1 byte-to-char mapping), with the text value only as a
+fallback.
+
+**Why:** Learned on a real card during Phase 2: the cédula's PDF417 carries
+binary sections, so the engines' text-only accessors (`rawValue` /
+`payloadStringValue`) return null and every frame is silently discarded.
+ISO-8859-1 preserves the ASCII fields the pattern-based locator anchors on.
+
+**Related:** dense PDF417 also needs a high analysis resolution — 1080p proved
+marginal on real cards (slow lock-on). Android analyzes at 2560×1440; iOS uses
+the 4K session preset (no 1440p preset exists) with a 1080p fallback.
+
 ---
 
 ## 4. Data Model
@@ -321,7 +337,7 @@ Design constraints baked into the library:
 
 ## 8. Roadmap / Phases
 
-### Phase 1 — Shared parsing core (`commonMain`)
+### Phase 1 — Shared parsing core (`commonMain`) ✅
 
 - **1a — Safety net:** characterization tests. Collect real PDF417 strings
   (2020 production + variants: one name/one surname, two/two, with and without
@@ -335,14 +351,33 @@ Design constraints baked into the library:
 > the easy, deterministic case (MRZ) before applying it to the hard case
 > (PDF417).
 
-### Phase 2 — Android scanner + UI
+### Phase 2 — Android scanner + UI ✅
 
 CameraX + ML Kit (BarcodeScanning + TextRecognition). Composable
 `IdScannerScreen` with an overlay guide and `ScanMode.AUTO`.
 
-### Phase 3 — iOS scanner + UI
+Implementation notes: the AUTO sequencing lives in commonMain
+(`ScanFrameRouter`, `MrzCandidateExtractor`) so iOS reuses it; barcode
+payload read via `rawBytes` (D7); analysis at 2560×1440; single-shot
+delivery with a 250ms throttle on the heavy OCR leg; verified against a
+real cédula amarilla on device.
+
+### Phase 3 — iOS scanner + UI ✅
 
 Vision + AVFoundation. Swift-friendly API for wrapping in SwiftUI.
+
+Implementation notes: Kotlin/Native in `iosMain`, reusing the shared
+router. `VNRecognizeTextRequest` at accurate level with
+`usesLanguageCorrection = false` (the fast level and language correction
+both mangle OCR-B/MRZ); 4K session preset (D7). **PDF417 is read via
+`AVCaptureMetadataOutput`** (the boarding-pass detector): on real cards
+Vision's PDF417 decoder never locks onto the cédula's dense barcode —
+the Vision leg (`payloadData`, D7) is kept only as fallback. Verified on
+a real device for both document generations. The public entry is the
+`IdScanner` factory object returning a plain `UIViewController` — Kotlin
+subclasses of Objective-C classes cannot be exported to the framework
+header. UI strings are constructor parameters with Spanish defaults: a
+static framework carries no resource bundle.
 
 ### Phase 4 — Packaging & distribution
 
