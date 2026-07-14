@@ -29,6 +29,28 @@ internal object Td1MrzParser {
 
     private const val LINE_LENGTH = 30
 
+    /** Colombian serial + its check digit — numeric on real cards. */
+    private val DIGIT_ZONES_LINE1 = listOf(5 until 15)
+
+    /** birth+cd, expiry+cd, NUIP + composite cd (sex and nationality excluded). */
+    private val DIGIT_ZONES_LINE2 = listOf(0 until 7, 8 until 15, 18 until 30)
+
+    /** Common OCR letter-for-digit confusions (uppercase Latin OCR-B). */
+    private val OCR_DIGIT_CONFUSIONS = mapOf(
+        'O' to '0', 'Q' to '0', 'I' to '1', 'Z' to '2', 'S' to '5', 'G' to '6', 'B' to '8'
+    )
+
+    private fun repairDigitZones(line: String, zones: List<IntRange>): String {
+        val chars = line.toCharArray()
+        for (zone in zones) {
+            for (index in zone) {
+                val replacement = OCR_DIGIT_CONFUSIONS[chars[index]] ?: continue
+                chars[index] = replacement
+            }
+        }
+        return chars.concatToString()
+    }
+
     fun parse(rawLines: List<String>, currentYear: Int): ScanResult {
         // OCR engines deliver lines with stray spaces and mixed case,
         // sometimes as a single newline-joined blob.
@@ -44,12 +66,19 @@ internal object Td1MrzParser {
             }
             return ScanResult.Error(ErrorReason.INPUT_TOO_SHORT)
         }
-        val (line1, line2, line3) = lines
 
-        if (line1[0] != 'I') {
-            ScanDebug.log { "MRZ parse: doc code '${line1.take(2)}' is not an ID card" }
+        if (lines[0][0] != 'I') {
+            ScanDebug.log { "MRZ parse: doc code '${lines[0].take(2)}' is not an ID card" }
             return ScanResult.Error(ErrorReason.UNKNOWN_FORMAT)
         }
+
+        // OCR letter-for-digit confusions in the numeric zones (O→0,
+        // I→1, …). Applied to the lines before any field extraction so
+        // the composite check digit sees the same characters; a wrong
+        // substitution is still caught by the check digits.
+        val line1 = repairDigitZones(lines[0], DIGIT_ZONES_LINE1)
+        val line2 = repairDigitZones(lines[1], DIGIT_ZONES_LINE2)
+        val line3 = lines[2]
 
         val serial = line1.substring(5, 14)
         val birth = line2.substring(0, 6)
@@ -60,7 +89,12 @@ internal object Td1MrzParser {
             line1.substring(5, 30) + line2.substring(0, 7) + line2.substring(8, 15) + nuipField
 
         val failedDigits = buildList {
-            if (!MrzCheckDigit.validate(serial, line1[14])) add("serial '$serial' cd '${line1[14]}'")
+            // Some cédulas (e.g. the Registraduría specimen) print '<'
+            // instead of a serial check digit; the composite check digit
+            // still covers the serial, so only validate a printed digit.
+            if (line1[14] != '<' && !MrzCheckDigit.validate(serial, line1[14])) {
+                add("serial '$serial' cd '${line1[14]}'")
+            }
             if (!MrzCheckDigit.validate(birth, line2[6])) add("birth '$birth' cd '${line2[6]}'")
             if (!MrzCheckDigit.validate(expiry, line2[14])) add("expiry '$expiry' cd '${line2[14]}'")
             if (!MrzCheckDigit.validate(compositeField, line2[29])) add("composite cd '${line2[29]}'")

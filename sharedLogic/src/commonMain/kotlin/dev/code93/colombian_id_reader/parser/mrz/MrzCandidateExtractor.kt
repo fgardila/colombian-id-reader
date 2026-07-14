@@ -17,6 +17,9 @@ internal object MrzCandidateExtractor {
     /** MRZ-ish enough to be worth describing in the diagnostics. */
     private val nearMiss = Regex("^[A-Z0-9<]{24,36}$")
 
+    /** MRZ alphabet with room for OCR-drifted trailing filler runs. */
+    private val td1Alphabet = Regex("^[A-Z0-9<]{20,40}$")
+
     /**
      * @param ocrLines recognized text lines in reading order (top to bottom).
      * @return the first contiguous window of 3 normalized TD1 lines whose
@@ -61,9 +64,26 @@ internal object MrzCandidateExtractor {
         }
     }
 
-    private fun normalize(line: String): String =
-        line.trim()
+    private fun normalize(line: String): String {
+        val cleaned = line.trim()
             .replace(" ", "")
             .replace("«", "<<")   // common OCR ligature for double filler
             .uppercase()
+        return repairTrailingFiller(cleaned)
+    }
+
+    /**
+     * OCR rarely counts a trailing '<' run correctly (fillers are
+     * low-information glyphs), so lines like the mostly-filler line 1
+     * and the name line drift between ~24 and ~36 chars. The run itself
+     * carries no data: trim it and re-pad to exactly 30. Data integrity
+     * is unaffected — lines 1-2 stay covered by the check digits, and
+     * the name line's fillers are padding by definition.
+     */
+    private fun repairTrailingFiller(line: String): String {
+        if (line.length == 30 || !td1Alphabet.matches(line)) return line
+        val core = line.trimEnd('<')
+        if (core.length > 30) return line // real overflow, not filler drift
+        return core.padEnd(30, '<')
+    }
 }

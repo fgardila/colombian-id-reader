@@ -20,14 +20,15 @@ internal object MrzFixtureBuilder {
         issuingState: String = "COL",
         serial: String = "123456789",
         nationality: String = "COL",
-        optional1: String = ""
+        optional1: String = "",
+        omitSerialCheckDigit: Boolean = false
     ): List<String> {
         require(docCode.length == 2 && issuingState.length == 3 && serial.length == 9)
         require(birth.length == 6 && expiry.length == 6 && nationality.length == 3)
         require(nuip.length <= 11)
 
-        val line1 = docCode + issuingState + serial +
-            MrzCheckDigit.compute(serial)!! + optional1.padEnd(15, '<')
+        val serialCd = if (omitSerialCheckDigit) "<" else MrzCheckDigit.compute(serial)!!.toString()
+        val line1 = docCode + issuingState + serial + serialCd + optional1.padEnd(15, '<')
 
         val nuipField = nuip.padEnd(11, '<')
         val line2Prefix = "" + birth + MrzCheckDigit.compute(birth)!! + sex +

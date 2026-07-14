@@ -137,7 +137,9 @@ class Td1MrzParserTest {
             surnames = listOf("MARTINEZ"), givenNames = listOf("MARIA")
         )
         assertEquals(ErrorReason.PATTERN_NOT_FOUND, errorReason(cardWithNuip("")))
-        assertEquals(ErrorReason.PATTERN_NOT_FOUND, errorReason(cardWithNuip("AB12345678")))
+        // Letters outside the OCR confusion map (a mapped letter like 'B'
+        // gets repaired to a digit and is caught by the composite instead).
+        assertEquals(ErrorReason.PATTERN_NOT_FOUND, errorReason(cardWithNuip("AX12345678")))
         assertEquals(ErrorReason.PATTERN_NOT_FOUND, errorReason(cardWithNuip("00000000000")))
     }
 
@@ -148,6 +150,56 @@ class Td1MrzParserTest {
             surnames = listOf("MARTINEZ"), givenNames = listOf("MARIA")
         )
         assertEquals(ErrorReason.PATTERN_NOT_FOUND, errorReason(card))
+    }
+
+    @Test
+    fun repairsOcrLetterForDigitConfusions() {
+        // Observed on real scans: 'O' read where a '0' is printed. The
+        // repair happens before validation, so the check digits still
+        // pass — and still reject any genuinely wrong substitution.
+        val card = MrzFixtures.validCard.toMutableList()
+        card[1] = card[1].replaceRange(2, 3, "O") // birth 880821 -> 88O821
+        assertEquals("1032456789", successData(card).documentNumber)
+
+        val corrupted = MrzFixtureBuilder.corrupt(MrzFixtures.validCard, 1, 0)
+        assertEquals(ErrorReason.CHECK_DIGIT_FAILED, errorReason(corrupted))
+    }
+
+    @Test
+    fun acceptsMissingSerialCheckDigit() {
+        // Some cédulas print '<' instead of a serial check digit (the
+        // Registraduría specimen does); the composite still covers the
+        // serial, so only a printed digit is validated.
+        val card = MrzFixtureBuilder.buildTd1(
+            birth = "880821", sex = 'F', expiry = "310130", nuip = "1032456789",
+            surnames = listOf("MARTINEZ"), givenNames = listOf("MARIA"),
+            omitSerialCheckDigit = true
+        )
+        assertEquals("1032456789", successData(card).documentNumber)
+    }
+
+    @Test
+    fun registraduriaSpecimenIsInternallyInvalid() {
+        // The public specimen (registraduria.gov.co back-ccd.png) prints
+        // composite check digit 9 where the ICAO computation over its
+        // own characters gives 8 — real cards validate correctly with
+        // the same segmentation. Rejecting it is the misread defense
+        // (D5) working, not a scanner bug.
+        val specimen = listOf(
+            "ICCOL000000012<<<<<<<<<<<<<<<<",
+            "8808213F3101300COL1234567890<9",
+            "VELEZ<RUIZ<<GERONIMO<<<<<<<<<<"
+        )
+        assertEquals(ErrorReason.CHECK_DIGIT_FAILED, errorReason(specimen))
+
+        // With the composite corrected to 8, everything else parses.
+        val corrected = specimen.toMutableList()
+        corrected[1] = corrected[1].dropLast(1) + "8"
+        val data = successData(corrected)
+        assertEquals("1234567890", data.documentNumber)
+        assertEquals("GERONIMO", data.firstName)
+        assertEquals("VELEZ", data.firstSurname)
+        assertEquals("RUIZ", data.secondSurname)
     }
 
     @Test
