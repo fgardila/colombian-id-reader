@@ -6,6 +6,7 @@ import dev.code93.colombian_id_reader.model.IdCardData
 import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
+import dev.code93.colombian_id_reader.scan.ScanDebug
 
 /**
  * ICAO 9303 TD1 parser for the cédula digital (2021+): three lines of
@@ -37,11 +38,18 @@ internal object Td1MrzParser {
             .filter { it.isNotEmpty() }
 
         if (lines.size != 3 || lines.any { it.length != LINE_LENGTH }) {
+            ScanDebug.log {
+                "MRZ parse: wrong shape — ${lines.size} line(s), " +
+                    "lengths ${lines.map { it.length }}"
+            }
             return ScanResult.Error(ErrorReason.INPUT_TOO_SHORT)
         }
         val (line1, line2, line3) = lines
 
-        if (line1[0] != 'I') return ScanResult.Error(ErrorReason.UNKNOWN_FORMAT)
+        if (line1[0] != 'I') {
+            ScanDebug.log { "MRZ parse: doc code '${line1.take(2)}' is not an ID card" }
+            return ScanResult.Error(ErrorReason.UNKNOWN_FORMAT)
+        }
 
         val serial = line1.substring(5, 14)
         val birth = line2.substring(0, 6)
@@ -51,14 +59,20 @@ internal object Td1MrzParser {
         val compositeField =
             line1.substring(5, 30) + line2.substring(0, 7) + line2.substring(8, 15) + nuipField
 
-        val checkDigitsOk = MrzCheckDigit.validate(serial, line1[14]) &&
-            MrzCheckDigit.validate(birth, line2[6]) &&
-            MrzCheckDigit.validate(expiry, line2[14]) &&
-            MrzCheckDigit.validate(compositeField, line2[29])
-        if (!checkDigitsOk) return ScanResult.Error(ErrorReason.CHECK_DIGIT_FAILED)
+        val failedDigits = buildList {
+            if (!MrzCheckDigit.validate(serial, line1[14])) add("serial '$serial' cd '${line1[14]}'")
+            if (!MrzCheckDigit.validate(birth, line2[6])) add("birth '$birth' cd '${line2[6]}'")
+            if (!MrzCheckDigit.validate(expiry, line2[14])) add("expiry '$expiry' cd '${line2[14]}'")
+            if (!MrzCheckDigit.validate(compositeField, line2[29])) add("composite cd '${line2[29]}'")
+        }
+        if (failedDigits.isNotEmpty()) {
+            ScanDebug.log { "MRZ parse: check digit(s) failed — ${failedDigits.joinToString("; ")}" }
+            return ScanResult.Error(ErrorReason.CHECK_DIGIT_FAILED)
+        }
 
         val nuip = nuipField.replace("<", "")
         if (nuip.isEmpty() || !nuip.all { it.isDigit() }) {
+            ScanDebug.log { "MRZ parse: NUIP field '$nuipField' is empty or non-numeric" }
             return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
         }
         val documentNumber = nuip.trimStart('0')
@@ -71,7 +85,10 @@ internal object Td1MrzParser {
             ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
 
         val names = parseNameLine(line3)
-            ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
+            ?: run {
+                ScanDebug.log { "MRZ parse: name line has no '<<' separator or empty groups: $line3" }
+                return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
+            }
 
         return ScanResult.Success(
             IdCardData(
