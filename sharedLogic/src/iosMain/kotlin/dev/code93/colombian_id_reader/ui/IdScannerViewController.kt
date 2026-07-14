@@ -150,7 +150,10 @@ internal class IdScannerViewController(
             captureSession?.stop()
             onResult(data)
         })
-        val session = IdCaptureSession(processor)
+        val session = IdCaptureSession(
+            processor,
+            enablePdf417Metadata = mode != ScanMode.MRZ_ONLY
+        )
 
         val layer = AVCaptureVideoPreviewLayer(session = session.session)
         layer.videoGravity = AVLayerVideoGravityResizeAspectFill

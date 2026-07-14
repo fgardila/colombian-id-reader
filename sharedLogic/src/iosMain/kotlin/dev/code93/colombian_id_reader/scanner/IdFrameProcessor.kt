@@ -10,8 +10,11 @@ import kotlin.concurrent.AtomicInt
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.runBlocking
 import platform.AVFoundation.AVCaptureConnection
+import platform.AVFoundation.AVCaptureMetadataOutputObjectsDelegateProtocol
 import platform.AVFoundation.AVCaptureOutput
 import platform.AVFoundation.AVCaptureVideoDataOutputSampleBufferDelegateProtocol
+import platform.AVFoundation.AVMetadataMachineReadableCodeObject
+import dev.code93.colombian_id_reader.ColombianIdParser
 import platform.CoreMedia.CMSampleBufferGetImageBuffer
 import platform.CoreMedia.CMSampleBufferRef
 import platform.CoreVideo.CVImageBufferRef
@@ -36,11 +39,13 @@ import platform.darwin.dispatch_get_main_queue
  * cheap barcode detector hot without cooking the device.
  */
 internal class IdFrameProcessor(
-    mode: ScanMode,
+    private val mode: ScanMode,
     private val detectors: VisionDetectors,
     private val onSuccess: (IdCardData) -> Unit,
     private val mrzThrottleMs: Long = 250
-) : NSObject(), AVCaptureVideoDataOutputSampleBufferDelegateProtocol {
+) : NSObject(),
+    AVCaptureVideoDataOutputSampleBufferDelegateProtocol,
+    AVCaptureMetadataOutputObjectsDelegateProtocol {
 
     private val delivered = AtomicInt(0)
     private var lastMrzAttemptAt = 0L // capture queue only
@@ -71,6 +76,28 @@ internal class IdFrameProcessor(
             dispatch_async(dispatch_get_main_queue()) { onSuccess(result.data) }
         }
         // Error / null: expected on partial frames — keep scanning.
+    }
+
+    /**
+     * PDF417 via AVCaptureMetadataOutput — the primary barcode path on
+     * iOS: Vision's PDF417 decoder proved unable to lock onto the
+     * cédula's dense barcode on real cards, while AVFoundation's
+     * metadata detector (the boarding-pass reader) handles it.
+     */
+    override fun captureOutput(
+        output: AVCaptureOutput,
+        didOutputMetadataObjects: List<*>,
+        fromConnection: AVCaptureConnection
+    ) {
+        if (delivered.value != 0 || mode == ScanMode.MRZ_ONLY) return
+        val raw = didOutputMetadataObjects
+            .filterIsInstance<AVMetadataMachineReadableCodeObject>()
+            .firstNotNullOfOrNull { it.stringValue }
+            ?: return
+        val result = ColombianIdParser.parsePdf417(raw)
+        if (result is ScanResult.Success && delivered.compareAndSet(0, 1)) {
+            dispatch_async(dispatch_get_main_queue()) { onSuccess(result.data) }
+        }
     }
 
     private fun uptimeMs(): Long =

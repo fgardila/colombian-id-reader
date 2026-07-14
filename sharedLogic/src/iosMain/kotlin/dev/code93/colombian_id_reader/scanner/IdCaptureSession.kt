@@ -5,11 +5,13 @@ package dev.code93.colombian_id_reader.scanner
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVCaptureDeviceInput
+import platform.AVFoundation.AVCaptureMetadataOutput
 import platform.AVFoundation.AVCaptureSession
 import platform.AVFoundation.AVCaptureSessionPreset1920x1080
 import platform.AVFoundation.AVCaptureSessionPreset3840x2160
 import platform.AVFoundation.AVCaptureVideoDataOutput
 import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.AVMetadataObjectTypePDF417Code
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_queue_create
 
@@ -24,7 +26,10 @@ import platform.darwin.dispatch_queue_create
  * The back camera can be absent (simulator): configuration then simply
  * adds no input and the preview stays black — never crash.
  */
-internal class IdCaptureSession(private val delegate: IdFrameProcessor) {
+internal class IdCaptureSession(
+    private val delegate: IdFrameProcessor,
+    private val enablePdf417Metadata: Boolean
+) {
 
     val session = AVCaptureSession()
 
@@ -74,6 +79,22 @@ internal class IdCaptureSession(private val delegate: IdFrameProcessor) {
         }
         if (session.canAddOutput(output)) {
             session.addOutput(output)
+        }
+
+        // AVFoundation's metadata detector is the primary PDF417 path:
+        // Vision cannot lock onto the cédula's dense barcode.
+        if (enablePdf417Metadata) {
+            val metadataOutput = AVCaptureMetadataOutput()
+            if (session.canAddOutput(metadataOutput)) {
+                session.addOutput(metadataOutput)
+                metadataOutput.setMetadataObjectsDelegate(delegate, queue = sessionQueue)
+                // Available types are only populated after addOutput.
+                if (metadataOutput.availableMetadataObjectTypes
+                        .contains(AVMetadataObjectTypePDF417Code)
+                ) {
+                    metadataOutput.metadataObjectTypes = listOf(AVMetadataObjectTypePDF417Code)
+                }
+            }
         }
 
         session.commitConfiguration()
