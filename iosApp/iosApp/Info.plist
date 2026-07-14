@@ -4,7 +4,5 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>La cámara se usa para escanear la cédula. La imagen se procesa únicamente en este dispositivo: no se guarda ni se envía.</string>
 </dict>
 </plist>
