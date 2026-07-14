@@ -17,8 +17,9 @@ import java.util.concurrent.Executor
  * Binds preview + analysis to the back camera and returns the provider
  * so the caller can unbindAll() on success or dispose.
  *
- * Analysis targets 1920x1080: the CameraX default (640x480) is too low
- * for MRZ OCR and marginal for dense PDF417 barcodes.
+ * Analysis targets 2560x1440: the CameraX default (640x480) is far too
+ * low for MRZ OCR, and the cédula's dense PDF417 proved marginal at
+ * 1080p on real cards (slow lock-on) — it needs more pixels per module.
  */
 internal fun bindScanner(
     context: Context,
@@ -42,7 +43,7 @@ internal fun bindScanner(
                 ResolutionSelector.Builder()
                     .setResolutionStrategy(
                         ResolutionStrategy(
-                            Size(1920, 1080),
+                            Size(2560, 1440),
                             ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                         )
                     )
