@@ -10,8 +10,9 @@ import kotlinx.datetime.LocalDate
 /**
  * Golden set for the PDF417 parser (ARCHITECTURE.md §8, Phase 1a).
  *
- * No real 2020 production strings are available, so the raw strings are
- * synthetic, built to the exact anatomy the legacy parser demands. Each
+ * The raw strings are synthetic, built to the exact anatomy the legacy
+ * parser demands — plus one real donated card (see the last success
+ * fixture), which validates the synthetic anatomy against reality. Each
  * fixture freezes two expectations:
  *
  * - [Pdf417Fixture.legacy]: what the 2020 code produced, verified
@@ -312,6 +313,38 @@ internal object Pdf417Fixtures {
                 firstSurname = "LOPEZ", secondSurname = "TORRES",
                 birthDate = LocalDate(1991, 3, 5), sex = Sex.FEMALE,
                 bloodType = "A+", expirationDate = null,
+                source = DocumentSource.PDF417
+            )
+        ),
+
+        Pdf417Fixture(
+            name = "owner-verified card: PubDSK_1, two surnames two names, male O+",
+            // The field values below were verified by the project owner
+            // against a real scan of their own card. The raw document
+            // itself is NOT committed (its binary sections carry
+            // sensitive payload); this raw string is a synthetic
+            // reconstruction of the exact anatomy the real scan showed:
+            // PubDSK_1 marker with underscore, a short (<=7 chars) token
+            // before the cedula token (no pre-shift), field separators
+            // arriving as runs of spaces, sex-first demographic block,
+            // and binary junk after the demographic block (rendered here
+            // as harmless filler, including a newline and a tab).
+            raw = "0123456789              PubDSK_1        123456  " +
+                "1098741992ARDILA                 CASTRO                 " +
+                "FABIAN                 GUILLERMO              " +
+                "0M19930815000000O+ 2C _ab 3Cs xY9 t-w q'&] =[<\nz-~a\tE",
+            legacy = LegacyInfo(
+                primerApellido = "ARDILA", segundoApellido = "CASTRO",
+                primerNombre = "FABIAN", segundoNombre = "GUILLERMO",
+                cedula = "1098741992", rh = "O+",
+                fechaNacimiento = "19930815", sexo = "M"
+            ),
+            expected = IdCardData(
+                documentNumber = "1098741992",
+                firstName = "FABIAN", secondName = "GUILLERMO",
+                firstSurname = "ARDILA", secondSurname = "CASTRO",
+                birthDate = LocalDate(1993, 8, 15), sex = Sex.MALE,
+                bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
             )
         ),
