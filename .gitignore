@@ -1,0 +1,105 @@
+# ============================================================
+# Kotlin Multiplatform + Compose Multiplatform .gitignore
+# Android, iOS, Desktop (JVM), Web (JS/WasmJs), Server (Ktor)
+# ============================================================
+
+# ---------- Gradle ----------
+.gradle/
+**/build/
+!src/**/build/
+local.properties
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# ---------- Kotlin ----------
+.kotlin/
+
+# ---------- IntelliJ / Android Studio ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ---------- Android ----------
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+gen/
+out/
+proguard/
+
+# ---------- iOS / Xcode ----------
+xcuserdata/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+Pods/
+
+# ---------- Desktop (JVM) ----------
+*.jks
+
+# ---------- Web (JS / WasmJs) ----------
+node_modules/
+dist/
+kotlin-js-store/
+composeApp/src/webMain/kotlin/dev/code93/idapp/WebSupabaseConfig.kt
+
+# ---------- Server (Ktor) ----------
+logs/
+*.log
+
+# ---------- macOS ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ---------- Windows ----------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------- Linux ----------
+*~
+
+# ---------- Sensitive / Credentials ----------
+google-services.json
+GoogleService-Info.plist
+*.env
+.env.*
+Secrets.xcconfig
+certificates/
+
+# ---------- Misc ----------
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+
+# Supabase CLI temp files
+supabase/.temp/
+# Firebase service account keys (nunca commitear)
+*-adminsdk-*.json
+
+# ---------- Fastlane ----------
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+**/vendor/bundle/
+Gemfile.lock

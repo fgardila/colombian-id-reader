@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=colombian-id-reader
+PRODUCT_BUNDLE_IDENTIFIER=dev.code93.colombian_id_reader.colombian-id-reader$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
