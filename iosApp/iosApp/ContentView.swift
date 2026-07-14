@@ -1,27 +1,18 @@
 import SwiftUI
-import SharedLogic
 
 struct ContentView: View {
-    @State private var showContent = false
     var body: some View {
-        VStack {
-            Button("Click me!") {
-                withAnimation {
-                    showContent = !showContent
-                }
-            }
-
-            if showContent {
-                VStack(spacing: 16) {
-                    Image(systemName: "swift")
-                        .font(.system(size: 200))
-                        .foregroundColor(.accentColor)
-                    Text("SwiftUI: \(Greeting().greet())")
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
+        VStack(spacing: 16) {
+            Image(systemName: "person.text.rectangle")
+                .font(.system(size: 80))
+                .foregroundColor(.accentColor)
+            Text("colombian-id-reader")
+                .font(.headline)
+            Text("El escáner iOS llega en la Fase 3")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 }
