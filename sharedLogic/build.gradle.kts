@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -19,6 +20,7 @@ composeCompiler {
 }
 
 kotlin {
+    val xcf = XCFramework("SharedLogic")
     listOf(
         iosArm64(),
         iosSimulatorArm64()
@@ -27,6 +29,7 @@ kotlin {
             baseName = "SharedLogic"
             isStatic = true
             export(libs.kotlinx.datetime)
+            xcf.add(this)
         }
     }
     
