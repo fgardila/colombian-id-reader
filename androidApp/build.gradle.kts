@@ -15,6 +15,10 @@ dependencies {
     implementation(projects.sharedUI)
     implementation(projects.sharedLogic)
 
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui)
     implementation(libs.androidx.activity.compose)
 
     implementation(libs.compose.uiToolingPreview)
