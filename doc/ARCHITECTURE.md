@@ -369,12 +369,15 @@ Vision + AVFoundation. Swift-friendly API for wrapping in SwiftUI.
 Implementation notes: Kotlin/Native in `iosMain`, reusing the shared
 router. `VNRecognizeTextRequest` at accurate level with
 `usesLanguageCorrection = false` (the fast level and language correction
-both mangle OCR-B/MRZ); 4K session preset (D7); barcode payload via
-`payloadData` (D7). The public entry is the `IdScanner` factory object
-returning a plain `UIViewController` — Kotlin subclasses of Objective-C
-classes cannot be exported to the framework header. UI strings are
-constructor parameters with Spanish defaults: a static framework carries
-no resource bundle.
+both mangle OCR-B/MRZ); 4K session preset (D7). **PDF417 is read via
+`AVCaptureMetadataOutput`** (the boarding-pass detector): on real cards
+Vision's PDF417 decoder never locks onto the cédula's dense barcode —
+the Vision leg (`payloadData`, D7) is kept only as fallback. Verified on
+a real device for both document generations. The public entry is the
+`IdScanner` factory object returning a plain `UIViewController` — Kotlin
+subclasses of Objective-C classes cannot be exported to the framework
+header. UI strings are constructor parameters with Spanish defaults: a
+static framework carries no resource bundle.
 
 ### Phase 4 — Packaging & distribution
 
