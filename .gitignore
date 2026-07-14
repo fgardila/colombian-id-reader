@@ -103,3 +103,5 @@ supabase/.temp/
 **/fastlane/test_output
 **/vendor/bundle/
 Gemfile.lock
+# ---------- Capturas de diagnostico (contienen PII) ----------
+*.logcat
