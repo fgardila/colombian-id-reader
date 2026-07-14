@@ -29,8 +29,10 @@ internal object Td1MrzParser {
     private const val LINE_LENGTH = 30
 
     fun parse(rawLines: List<String>, currentYear: Int): ScanResult {
-        // OCR engines deliver lines with stray spaces and mixed case.
+        // OCR engines deliver lines with stray spaces and mixed case,
+        // sometimes as a single newline-joined blob.
         val lines = rawLines
+            .flatMap { it.split('\n', '\r') }
             .map { it.trim().replace(" ", "").uppercase() }
             .filter { it.isNotEmpty() }
 
