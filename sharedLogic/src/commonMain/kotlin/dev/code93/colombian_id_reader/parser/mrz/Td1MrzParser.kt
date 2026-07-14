@@ -127,10 +127,8 @@ internal object Td1MrzParser {
         return ScanResult.Success(
             IdCardData(
                 documentNumber = documentNumber,
-                firstName = names.firstName,
-                secondName = names.secondName,
-                firstSurname = names.firstSurname,
-                secondSurname = names.secondSurname,
+                givenNames = names.givenNames,
+                surnames = names.surnames,
                 birthDate = birthDate,
                 sex = when (sexChar) {
                     'M' -> Sex.MALE
@@ -145,12 +143,16 @@ internal object Td1MrzParser {
     }
 
     private class NameParts(
-        val firstSurname: String,
-        val secondSurname: String?,
-        val firstName: String,
-        val secondName: String?
+        val surnames: String,
+        val givenNames: String
     )
 
+    /**
+     * '<<' separates the surname group from the given-names group; a
+     * single '<' is BOTH the word separator inside a group and the
+     * space inside a compound name ("DE<LA<OSSA") — indistinguishable
+     * by design, which is why the groups are returned merged.
+     */
     private fun parseNameLine(line3: String): NameParts? {
         val content = line3.trimEnd('<')
         val separator = content.indexOf("<<")
@@ -161,10 +163,8 @@ internal object Td1MrzParser {
         if (surnames.isEmpty() || givenNames.isEmpty()) return null
 
         return NameParts(
-            firstSurname = surnames.first(),
-            secondSurname = surnames.drop(1).joinToString(" ").takeIf { it.isNotEmpty() },
-            firstName = givenNames.first(),
-            secondName = givenNames.drop(1).joinToString(" ").takeIf { it.isNotEmpty() }
+            surnames = surnames.joinToString(" "),
+            givenNames = givenNames.joinToString(" ")
         )
     }
 }

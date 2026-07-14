@@ -177,6 +177,20 @@ ISO-8859-1 preserves the ASCII fields the pattern-based locator anchors on.
 marginal on real cards (slow lock-on). Android analyzes at 2560×1440; iOS uses
 the 4K session preset (no 1440p preset exists) with a 1080p fallback.
 
+### D8 — Names are two merged strings; a 4-way split is unrecoverable
+
+**Decision:** `IdCardData` exposes `givenNames` and `surnames` (merged,
+non-null) instead of first/second name/surname fields.
+
+**Why:** Compound names break any split. In the MRZ, the space inside
+"DE LA OSSA" and the separator before "TOVAR" are the same `<` character —
+the boundary does not exist in the encoding. In the PDF417, fields are
+fixed-width and padded with separator runs while compound-name spaces are
+single, so only the boundary between the *first* surname and the rest is
+recoverable (the normalizer preserves runs as field boundaries for exactly
+this reason). Exposing a fake 4-way split would silently corrupt compound
+names; merging is what KYC flows consume anyway.
+
 ---
 
 ## 4. Data Model
@@ -187,10 +201,8 @@ given source cannot provide are `null`.
 ```kotlin
 data class IdCardData(
     val documentNumber: String,      // NUIP, normalized (no leading zeros)
-    val firstName: String,
-    val secondName: String?,
-    val firstSurname: String,
-    val secondSurname: String?,
+    val givenNames: String,          // merged: "FABIAN GUILLERMO"
+    val surnames: String,            // merged: "DE LA OSSA TOVAR"
     val birthDate: LocalDate?,
     val sex: Sex,                     // MALE, FEMALE, UNSPECIFIED
     val bloodType: String?,          // e.g. "O+"; PDF417 only, null for MRZ
@@ -207,7 +219,7 @@ enum class DocumentSource { PDF417, MRZ }
 | Field            | PDF417 (yellow) | MRZ (digital) |
 |------------------|:---------------:|:-------------:|
 | documentNumber   | ✅              | ✅            |
-| names / surnames | ✅              | ✅            |
+| givenNames / surnames | ✅         | ✅            |
 | birthDate        | ✅              | ✅            |
 | sex              | ✅              | ✅            |
 | bloodType (RH)   | ✅              | ❌ (null)     |
@@ -307,10 +319,13 @@ and the `corrimiento` counter with pattern-based field location (see D3, D4):
 
 ```
 Pdf417Parser
-├── Normalizer     cleans the raw string (equivalent of the old replaceAll)
-├── FieldLocator   identifies each token by pattern, without magic indices
-│                  e.g. "the 10-digit token is the cédula";
-│                       "the token matching date+sex+RH is the demographic block"
+├── Normalizer     raw string → FIELDS: separator RUNS are field
+│                  boundaries (real cards pad fixed-width fields with
+│                  runs); single spaces stay inside a field, so
+│                  compound names survive whole
+├── FieldLocator   identifies each field by pattern, without magic indices
+│                  e.g. "the 10-digit + surname field is the cédula";
+│                       "the field matching sex+date+RH is the demographic block"
 └── FieldMapper    builds IdCardData
 ```
 

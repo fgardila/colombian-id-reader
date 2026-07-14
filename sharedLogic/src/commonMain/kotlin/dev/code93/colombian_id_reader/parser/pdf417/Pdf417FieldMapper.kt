@@ -9,20 +9,25 @@ import dev.code93.colombian_id_reader.parser.pdf417.Pdf417FieldLocator.LocatedFi
 internal object Pdf417FieldMapper {
 
     fun map(fields: LocatedFields): IdCardData {
-        val tokens = fields.nameTokens
-        // 1 token: first name only; 2: second surname + first name;
-        // 3+: second surname + first name + second name(s) — extra tokens
-        // (a name split by a stripped Ñ/accent) are re-joined.
-        val secondSurname = if (tokens.size >= 2) tokens[0] else null
-        val firstName = if (tokens.size >= 2) tokens[1] else tokens[0]
-        val secondName = tokens.drop(2).joinToString(" ").takeIf { it.isNotEmpty() }
+        val nameFields = fields.nameFields
+        // Layout between the anchors: [second surname?, given name(s)...].
+        // 1 field: given names only; 2: second surname + given names;
+        // 3+: second surname + separate given-name fields re-joined.
+        val surnames = if (nameFields.size >= 2) {
+            "${fields.firstSurname} ${nameFields[0]}"
+        } else {
+            fields.firstSurname
+        }
+        val givenNames = if (nameFields.size >= 2) {
+            nameFields.drop(1).joinToString(" ")
+        } else {
+            nameFields[0]
+        }
 
         return IdCardData(
             documentNumber = fields.cedula.trimStart('0'),
-            firstName = firstName,
-            secondName = secondName,
-            firstSurname = fields.firstSurname,
-            secondSurname = secondSurname,
+            givenNames = givenNames,
+            surnames = surnames,
             // The barcode has no check digits; a corrupt date is not proof
             // of a bad read, so it degrades to null instead of failing.
             birthDate = DateParsing.parseYyyyMmDd(fields.birthDateRaw),

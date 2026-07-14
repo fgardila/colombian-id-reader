@@ -80,10 +80,8 @@ private fun ResultView(result: ScanResult) {
         is ScanResult.Success -> Column {
             val data = result.data
             Field("Número de documento", data.documentNumber)
-            Field("Primer nombre", data.firstName)
-            Field("Segundo nombre", data.secondName)
-            Field("Primer apellido", data.firstSurname)
-            Field("Segundo apellido", data.secondSurname)
+            Field("Nombres", data.givenNames)
+            Field("Apellidos", data.surnames)
             Field("Fecha de nacimiento", data.birthDate?.toString())
             Field("Sexo", data.sex.name)
             Field("Tipo de sangre (RH)", data.bloodType)

@@ -43,10 +43,20 @@ class Pdf417OracleAgreementTest {
             val data = assertIs<ScanResult.Success>(Pdf417Parser.parse(fixture.raw), name).data
 
             assertEquals(legacy.cedula.trimStart('0'), data.documentNumber, name)
-            assertEquals(legacy.primerApellido, data.firstSurname, name)
-            assertEquals(legacy.segundoApellido.takeIf { it.isNotBlank() }, data.secondSurname, name)
-            assertEquals(legacy.primerNombre, data.firstName, name)
-            assertEquals(legacy.segundoNombre.takeIf { it.isNotBlank() }, data.secondName, name)
+            // The oracle exposed four positional fields (with " "/""
+            // placeholders); the new model merges each pair.
+            assertEquals(
+                listOf(legacy.primerApellido, legacy.segundoApellido)
+                    .filter { it.isNotBlank() }.joinToString(" "),
+                data.surnames,
+                name
+            )
+            assertEquals(
+                listOf(legacy.primerNombre, legacy.segundoNombre)
+                    .filter { it.isNotBlank() }.joinToString(" "),
+                data.givenNames,
+                name
+            )
             // Legacy sex heuristic was contains("M") over its sexo value.
             assertEquals(
                 if (legacy.sexo.contains("M")) Sex.MALE else Sex.FEMALE,

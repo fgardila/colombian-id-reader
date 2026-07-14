@@ -28,10 +28,8 @@ class Td1MrzParserTest {
         val data = successData(MrzFixtures.validCard)
 
         assertEquals("1032456789", data.documentNumber)
-        assertEquals("MARIA", data.firstName)
-        assertEquals("DANIELA", data.secondName)
-        assertEquals("MARTINEZ", data.firstSurname)
-        assertEquals("GARCIA", data.secondSurname)
+        assertEquals("MARIA DANIELA", data.givenNames)
+        assertEquals("MARTINEZ GARCIA", data.surnames)
         assertEquals(LocalDate(1988, 8, 21), data.birthDate)
         assertEquals(Sex.FEMALE, data.sex)
         assertEquals(LocalDate(2031, 1, 30), data.expirationDate)
@@ -49,10 +47,8 @@ class Td1MrzParserTest {
                 surnames = listOf("SALAZAR"), givenNames = listOf("CAMILO")
             )
         )
-        assertEquals("CAMILO", data.firstName)
-        assertNull(data.secondName)
-        assertEquals("SALAZAR", data.firstSurname)
-        assertNull(data.secondSurname)
+        assertEquals("CAMILO", data.givenNames)
+        assertEquals("SALAZAR", data.surnames)
         assertEquals(Sex.MALE, data.sex)
         assertEquals("56789123", data.documentNumber) // leading zeros stripped
     }
@@ -197,9 +193,25 @@ class Td1MrzParserTest {
         corrected[1] = corrected[1].dropLast(1) + "8"
         val data = successData(corrected)
         assertEquals("1234567890", data.documentNumber)
-        assertEquals("GERONIMO", data.firstName)
-        assertEquals("VELEZ", data.firstSurname)
-        assertEquals("RUIZ", data.secondSurname)
+        assertEquals("GERONIMO", data.givenNames)
+        assertEquals("VELEZ RUIZ", data.surnames)
+    }
+
+    @Test
+    fun compoundSurnameStaysMerged() {
+        // "DE LA OSSA TOVAR" — in the MRZ the intra-surname spaces and
+        // the surname separator are the same '<': unsplittable by design.
+        val data = successData(MrzFixtures.compoundSurnameCard)
+        assertEquals("DE LA OSSA TOVAR", data.surnames)
+        assertEquals("OSWALDO", data.givenNames)
+    }
+
+    @Test
+    fun oneSurnameOneGivenName() {
+        val data = successData(MrzFixtures.walterosCard)
+        assertEquals("WALTEROS", data.surnames)
+        assertEquals("LAURA", data.givenNames)
+        assertEquals("1052478963", data.documentNumber)
     }
 
     @Test

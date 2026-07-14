@@ -32,10 +32,8 @@ object, regardless of which document type was read.
 ```kotlin
 data class IdCardData(
     val documentNumber: String,      // NUIP, normalized
-    val firstName: String,
-    val secondName: String?,
-    val firstSurname: String,
-    val secondSurname: String?,
+    val givenNames: String,          // "FABIAN GUILLERMO", "MARIA DEL MAR"
+    val surnames: String,            // "ARDILA CASTRO", "DE LA OSSA TOVAR"
     val birthDate: LocalDate?,
     val sex: Sex,                    // MALE, FEMALE, UNSPECIFIED
     val bloodType: String?,          // PDF417 only — null for MRZ
@@ -44,6 +42,8 @@ data class IdCardData(
 )
 ```
 
+Names are two merged strings on purpose: neither encoding can reliably
+distinguish a compound surname ("DE LA OSSA") from two separate surnames.
 Nullability is honest: fields a given source cannot provide are `null` (the
 digital card's MRZ does **not** carry blood type).
 

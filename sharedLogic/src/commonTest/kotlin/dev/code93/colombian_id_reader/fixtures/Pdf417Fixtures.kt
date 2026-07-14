@@ -11,7 +11,7 @@ import kotlinx.datetime.LocalDate
  * Golden set for the PDF417 parser (ARCHITECTURE.md §8, Phase 1a).
  *
  * The raw strings are synthetic, built to the exact anatomy the legacy
- * parser demands — plus one real donated card (see the last success
+ * parser demands — plus one real donated card (the last success
  * fixture), which validates the synthetic anatomy against reality. Each
  * fixture freezes two expectations:
  *
@@ -25,11 +25,11 @@ import kotlinx.datetime.LocalDate
  *      "B+"; the new parser returns the full "AB+".
  *   2. Sex: legacy did `token.contains("M")`; the new parser reads the
  *      explicit M/F character of the demographic block.
- *   3. Legacy used " "/"" placeholders for absent second name/surname;
- *      the new parser uses null.
- *   4. Names with Ñ/accents: the normalizer (like the legacy one) strips
- *      them, splitting the name token. Legacy crashed; the new parser
- *      recovers best-effort by joining the extra tokens into secondName.
+ *   3. Legacy exposed four positional name fields (with " "/""
+ *      placeholders); the new model exposes two merged strings —
+ *      compound names ("DE LA OSSA") make a 4-way split unrecoverable.
+ *   4. Names with Ñ/accents: the character degrades to an in-field
+ *      space ("NI O") — legacy crashed on these.
  *   5. Negative blood types: the legacy normalizer's allowed set kept '+'
  *      but not '-', so "A-" lost its sign and legacy rh became the last
  *      two surviving chars (e.g. "1A"). The new normalizer keeps '-' and
@@ -46,14 +46,16 @@ internal data class Pdf417Fixture(
 internal object Pdf417Fixtures {
 
     /**
-     * Joins tokens with '#' (normalized to a space by both parsers) and
-     * left-pads with a filler token of '9's so the total length passes the
-     * legacy `< 150` gate. Callers' tokens land at splitStr[1..n].
+     * Joins fields with a 3-space run (real cards pad fixed-width fields
+     * with separator runs; single spaces stay inside a field) and
+     * left-pads with a filler field of '9's so the total length passes
+     * the legacy `< 150` gate. The run is invisible to the legacy
+     * oracle, which collapses any separator run.
      */
-    private fun rawOf(vararg tokens: String): String {
-        val body = tokens.joinToString("#")
-        val padding = (150 - body.length - 1).coerceAtLeast(4)
-        return "9".repeat(padding) + "#" + body
+    private fun rawOf(vararg fields: String): String {
+        val body = fields.joinToString("   ")
+        val padding = (150 - body.length - 3).coerceAtLeast(4)
+        return "9".repeat(padding) + "   " + body
     }
 
     val all: List<Pdf417Fixture> = listOf(
@@ -72,8 +74,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "1234567",
-                firstName = "JUAN", secondName = "CARLOS",
-                firstSurname = "GARCIA", secondSurname = "RODRIGUEZ",
+                givenNames = "JUAN CARLOS",
+                surnames = "GARCIA RODRIGUEZ",
                 birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -94,8 +96,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "52147896",
-                firstName = "ANA", secondName = null,
-                firstSurname = "LOPEZ", secondSurname = "TORRES",
+                givenNames = "ANA",
+                surnames = "LOPEZ TORRES",
                 birthDate = LocalDate(1991, 3, 5), sex = Sex.FEMALE,
                 bloodType = "A-", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -116,8 +118,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "9876543",
-                firstName = "LUIS", secondName = "MIGUEL",
-                firstSurname = "MARTINEZ", secondSurname = "PEREZ",
+                givenNames = "LUIS MIGUEL",
+                surnames = "MARTINEZ PEREZ",
                 birthDate = LocalDate(1975, 12, 1), sex = Sex.MALE,
                 bloodType = "AB+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -138,8 +140,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "1023456789",
-                firstName = "MARIA", secondName = "JOSE",
-                firstSurname = "DIAZ", secondSurname = "CASTRO",
+                givenNames = "MARIA JOSE",
+                surnames = "DIAZ CASTRO",
                 birthDate = LocalDate(2002, 4, 15), sex = Sex.FEMALE,
                 bloodType = "B-", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -160,8 +162,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "1234567",
-                firstName = "JUAN", secondName = "CARLOS",
-                firstSurname = "GARCIA", secondSurname = "RODRIGUEZ",
+                givenNames = "JUAN CARLOS",
+                surnames = "GARCIA RODRIGUEZ",
                 birthDate = null, sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -182,8 +184,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "34567891",
-                firstName = "PEDRO", secondName = "PABLO",
-                firstSurname = "HERNANDEZ", secondSurname = "GOMEZ",
+                givenNames = "PEDRO PABLO",
+                surnames = "HERNANDEZ GOMEZ",
                 birthDate = LocalDate(1967, 7, 24), sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -204,8 +206,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "45678912",
-                firstName = "DIANA", secondName = null,
-                firstSurname = "RUIZ", secondSurname = "VARGAS",
+                givenNames = "DIANA",
+                surnames = "RUIZ VARGAS",
                 birthDate = LocalDate(1985, 6, 12), sex = Sex.FEMALE,
                 bloodType = "O-", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -226,8 +228,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "56789123",
-                firstName = "CAMILO", secondName = null,
-                firstSurname = "SALAZAR", secondSurname = null,
+                givenNames = "CAMILO",
+                surnames = "SALAZAR",
                 birthDate = LocalDate(1999, 2, 28), sex = Sex.MALE,
                 bloodType = "A+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -248,8 +250,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "67891234",
-                firstName = "ANDRES", secondName = "FELIPE",
-                firstSurname = "MORENO", secondSurname = "JIMENEZ",
+                givenNames = "ANDRES FELIPE",
+                surnames = "MORENO JIMENEZ",
                 birthDate = LocalDate(1973, 3, 17), sex = Sex.MALE,
                 bloodType = "B+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -257,7 +259,7 @@ internal object Pdf417Fixtures {
         ),
 
         Pdf417Fixture(
-            name = "nonPubDsk enye in second name (legacy crashed; new parser recovers)",
+            name = "nonPubDsk enye in second name (legacy crashed; degrades to in-field space)",
             raw = rawOf(
                 "22", "04910078912345ACOSTA", "BELLO", "MARIO", "NIÑO",
                 "0M199408190022O+"
@@ -265,9 +267,30 @@ internal object Pdf417Fixtures {
             legacy = null,
             expected = IdCardData(
                 documentNumber = "78912345",
-                firstName = "MARIO", secondName = "NI O",
-                firstSurname = "ACOSTA", secondSurname = "BELLO",
+                givenNames = "MARIO NI O",
+                surnames = "ACOSTA BELLO",
                 birthDate = LocalDate(1994, 8, 19), sex = Sex.MALE,
+                bloodType = "O+", expirationDate = null,
+                source = DocumentSource.PDF417
+            )
+        ),
+
+        Pdf417Fixture(
+            name = "nonPubDsk compound first surname (De La Ossa Tovar)",
+            // Single spaces INSIDE the field are part of the compound
+            // surname; the legacy positional code garbled this shape
+            // (and its oracle crashes on it), the field-aware pipeline
+            // keeps it whole.
+            raw = rawOf(
+                "22", "0462001034567890DE LA OSSA", "TOVAR", "OSWALDO",
+                "0M198808210060O+"
+            ),
+            legacy = null,
+            expected = IdCardData(
+                documentNumber = "1034567890",
+                givenNames = "OSWALDO",
+                surnames = "DE LA OSSA TOVAR",
+                birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
             )
@@ -287,8 +310,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "1234567",
-                firstName = "JUAN", secondName = "CARLOS",
-                firstSurname = "GARCIA", secondSurname = "RODRIGUEZ",
+                givenNames = "JUAN CARLOS",
+                surnames = "GARCIA RODRIGUEZ",
                 birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -309,8 +332,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "52147896",
-                firstName = "ANA", secondName = null,
-                firstSurname = "LOPEZ", secondSurname = "TORRES",
+                givenNames = "ANA",
+                surnames = "LOPEZ TORRES",
                 birthDate = LocalDate(1991, 3, 5), sex = Sex.FEMALE,
                 bloodType = "A+", expirationDate = null,
                 source = DocumentSource.PDF417
@@ -341,8 +364,8 @@ internal object Pdf417Fixtures {
             ),
             expected = IdCardData(
                 documentNumber = "1098741992",
-                firstName = "FABIAN", secondName = "GUILLERMO",
-                firstSurname = "ARDILA", secondSurname = "CASTRO",
+                givenNames = "FABIAN GUILLERMO",
+                surnames = "ARDILA CASTRO",
                 birthDate = LocalDate(1993, 8, 15), sex = Sex.MALE,
                 bloodType = "O+", expirationDate = null,
                 source = DocumentSource.PDF417
