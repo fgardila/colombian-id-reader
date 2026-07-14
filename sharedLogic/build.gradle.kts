@@ -6,7 +6,11 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    `maven-publish`
 }
+
+group = property("GROUP") as String
+version = property("VERSION_NAME") as String
 
 // Compose lives only in androidMain (scanning UI); keep the compose
 // compiler away from the ios/jvm compilations, which have no runtime.
@@ -42,6 +46,9 @@ kotlin {
        withHostTest {
            isIncludeAndroidResources = true
        }
+       aarMetadata {
+           minCompileSdk = libs.versions.android.compileSdk.get().toInt()
+       }
     }
     
     sourceSets {
@@ -70,6 +77,37 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+        }
+    }
+}
+
+publishing {
+    // The Gradle module stays :sharedLogic (the demo apps and the Xcode
+    // build phase reference it); only the published coordinates change.
+    // configureEach keeps the root module's Gradle Module Metadata
+    // ("available-at") consistent with the per-target artifactIds.
+    publications.withType<MavenPublication>().configureEach {
+        artifactId = artifactId.replace(project.name, "colombian-id-reader")
+        pom {
+            name.set("colombian-id-reader")
+            description.set(
+                "Kotlin Multiplatform library for reading Colombian identity " +
+                    "documents (PDF417 cedula amarilla + MRZ cedula digital)"
+            )
+            url.set("https://github.com/fgardila/colombian-id-reader")
+            scm {
+                url.set("https://github.com/fgardila/colombian-id-reader")
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/fgardila/colombian-id-reader")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR") ?: findProperty("gpr.user") as String?
+                password = System.getenv("GITHUB_TOKEN") ?: findProperty("gpr.key") as String?
+            }
         }
     }
 }
