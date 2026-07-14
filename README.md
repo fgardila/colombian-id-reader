@@ -58,6 +58,84 @@ colombian-id-reader/
 └── iosApp/          iOS demo app (Xcode project)
 ```
 
+## Installation
+
+### Android (GitHub Packages)
+
+> GitHub Packages requires a personal access token with `read:packages`
+> — even for public repositories.
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral() // transitive CameraX / ML Kit / Compose deps
+        maven {
+            url = uri("https://maven.pkg.github.com/fgardila/colombian-id-reader")
+            credentials {
+                username = providers.gradleProperty("gpr.user").orNull ?: System.getenv("GITHUB_ACTOR")
+                password = providers.gradleProperty("gpr.key").orNull ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
+
+// build.gradle.kts (Android app)
+dependencies {
+    implementation("dev.code93:colombian-id-reader-android:0.1.0")
+}
+// From a KMP project, depend on the root "dev.code93:colombian-id-reader" instead.
+```
+
+Add the camera permission to your manifest: `<uses-permission android:name="android.permission.CAMERA" />`.
+
+**Size note:** the bundled ML Kit models add roughly 2–3 MB (barcode) plus
+~4 MB per ABI (text recognition) to the consumer APK. Ship an App Bundle
+(or ABI splits) to keep downloads lean.
+
+### iOS (Swift Package Manager)
+
+Add the package `https://github.com/fgardila/colombian-id-reader` in Xcode
+(File → Add Package Dependencies) and link the `SharedLogic` product.
+Minimum iOS 15. Add `NSCameraUsageDescription` to your Info.plist.
+
+## Usage
+
+Android (Jetpack Compose):
+
+```kotlin
+IdScannerScreen(
+    mode = ScanMode.AUTO,            // PDF417 first, MRZ fallback
+    onResult = { data: IdCardData -> /* hand off, in memory only */ },
+    onCancel = { /* navigate back */ }
+)
+```
+
+iOS (SwiftUI via UIViewControllerRepresentable):
+
+```swift
+import SharedLogic
+
+func makeUIViewController(context: Context) -> UIViewController {
+    IdScanner.shared.viewController(
+        mode: .auto_,                // `auto` is reserved in ObjC
+        onResult: { data in /* IdCardData */ },
+        onCancel: { }
+    )
+}
+```
+
+Both entry points return a single unified `IdCardData` and never persist,
+transmit, or log what the camera sees.
+
+## Releasing
+
+Run the **release** GitHub Actions workflow with the version number
+(e.g. `0.2.0`). It gates on the full test suite, builds and uploads the
+XCFramework, rewrites `Package.swift` with the new checksum, tags the
+release, and publishes the Maven artifacts to GitHub Packages.
+
 ## Building & running
 
 ```bash
@@ -77,10 +155,11 @@ iOS: open [iosApp/](iosApp) in Xcode and run from there.
 
 ## Roadmap
 
-1. **Phase 1 — Shared parsing core**: characterization tests (golden files from
+1. ✅ **Phase 1 — Shared parsing core**: characterization tests (golden files from
    the 2020 parser), `Td1MrzParser` with ICAO check digits, clean `Pdf417Parser`
    rewrite (Normalizer / FieldLocator / FieldMapper).
-2. **Phase 2 — Android scanner + UI**: CameraX + ML Kit, `IdScannerScreen` with
+2. ✅ **Phase 2 — Android scanner + UI**: CameraX + ML Kit, `IdScannerScreen` with
    `ScanMode.AUTO` (PDF417 first, MRZ fallback).
-3. **Phase 3 — iOS scanner + UI**: Vision + AVFoundation, Swift-friendly API.
-4. **Phase 4 — Packaging**: Maven/AAR for Android, XCFramework for iOS.
+3. ✅ **Phase 3 — iOS scanner + UI**: AVFoundation + Vision, Swift-friendly API.
+4. ✅ **Phase 4 — Packaging**: Maven/GitHub Packages for Android, XCFramework/SPM
+   for iOS, CI + release automation.

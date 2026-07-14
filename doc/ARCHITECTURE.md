@@ -379,10 +379,24 @@ subclasses of Objective-C classes cannot be exported to the framework
 header. UI strings are constructor parameters with Spanish defaults: a
 static framework carries no resource bundle.
 
-### Phase 4 — Packaging & distribution
+### Phase 4 — Packaging & distribution ✅
 
-- Android: Maven / AAR. Note: ML Kit adds weight to the AAR.
-- iOS: XCFramework.
+- **Android: Maven / GitHub Packages.** Coordinates
+  `dev.code93:colombian-id-reader` (root KMP module; `-android` AAR,
+  `-jvm` for server-side parser reuse, iOS klibs for KMP consumers).
+  Version single-sourced from `gradle.properties`. Consumers need a PAT
+  with `read:packages` plus `google()`/`mavenCentral()` for transitive
+  CameraX/ML Kit. Bundled ML Kit models add ~2–3 MB + ~4 MB/ABI to the
+  consumer APK (App Bundle recommended).
+- **iOS: XCFramework via SPM.** `Package.swift` at the repo root with a
+  `binaryTarget` over the zip attached to each GitHub Release
+  (product `SharedLogic`, iOS 15+).
+- **Release runbook:** run the `release` GitHub Actions workflow with the
+  version number. Ordering matters for the SPM checksum: the zip is built
+  once, its checksum committed into `Package.swift`, and the tag created
+  on that commit — the manifest at any tag always matches that tag's
+  release asset. CI (`ci.yml`) runs JVM/Android tests on Linux and
+  Kotlin/Native tests on macOS for every PR.
 
 ---
 
