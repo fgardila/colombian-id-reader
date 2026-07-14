@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prefixed to avoid merge collisions in consumer apps. Spanish is
+         the default locale: the document is Colombian. -->
+    <string name="colombian_id_scanner_instruction">Alinee el documento dentro del marco</string>
+    <string name="colombian_id_scanner_permission_rationale">Para escanear el documento se necesita acceso a la cámara. La imagen se procesa únicamente en este dispositivo: no se guarda ni se envía.</string>
+    <string name="colombian_id_scanner_grant_permission">Conceder permiso</string>
+    <string name="colombian_id_scanner_cancel">Cancelar</string>
+</resources>
