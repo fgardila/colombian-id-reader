@@ -14,4 +14,27 @@ internal object MrzFixtures {
         surnames = listOf("MARTINEZ", "GARCIA"),
         givenNames = listOf("MARIA", "DANIELA")
     )
+
+    /**
+     * Compound surname: in the MRZ, the spaces of "DE LA OSSA" and the
+     * separator before "TOVAR" are the same '<' — merged on purpose.
+     */
+    val compoundSurnameCard: List<String> = MrzFixtureBuilder.buildTd1(
+        birth = "900504",
+        sex = 'M',
+        expiry = "320220",
+        nuip = "1020304050",
+        surnames = listOf("DE", "LA", "OSSA", "TOVAR"),
+        givenNames = listOf("OSWALDO")
+    )
+
+    /** One surname, one given name (Figma test document). */
+    val walterosCard: List<String> = MrzFixtureBuilder.buildTd1(
+        birth = "950310",
+        sex = 'F',
+        expiry = "330715",
+        nuip = "1052478963",
+        surnames = listOf("WALTEROS"),
+        givenNames = listOf("LAURA")
+    )
 }

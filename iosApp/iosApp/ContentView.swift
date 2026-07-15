@@ -70,10 +70,8 @@ struct ResultView: View {
                     .padding(.bottom, 16)
 
                 field("Número de documento", data.documentNumber)
-                field("Primer nombre", data.firstName)
-                field("Segundo nombre", data.secondName)
-                field("Primer apellido", data.firstSurname)
-                field("Segundo apellido", data.secondSurname)
+                field("Nombres", data.givenNames)
+                field("Apellidos", data.surnames)
                 field("Fecha de nacimiento", data.birthDate?.description())
                 field("Sexo", data.sex.name)
                 field("Tipo de sangre (RH)", data.bloodType)

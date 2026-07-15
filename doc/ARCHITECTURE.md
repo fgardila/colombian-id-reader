@@ -37,8 +37,8 @@ maintain, and does not cover the digital card.
 
 ### Non-Goals
 
-- No cloud OCR. All recognition is **on-device** (ML Kit on Android, Vision on
-  iOS).
+- No cloud OCR. All recognition is **on-device** (ML Kit on Android,
+  AVFoundation + Vision on iOS).
 - No shared UI framework. UI is **native per platform** (Jetpack Compose on
   Android, SwiftUI-friendly API on iOS).
 - The library does not store, upload, or decide what happens to the data after
@@ -51,21 +51,28 @@ maintain, and does not cover the digital card.
 ### Module layout
 
 ```
-colombian-id-reader/
+colombian-id-reader/            (Gradle module :sharedLogic)
 ├── commonMain/          Pure Kotlin. Testable on the JVM. No platform deps.
-│   ├── model/           IdCardData, Sex, DocumentSource, ScanResult, ErrorReason
+│   ├── model/           IdCardData, Sex, DocumentSource, ScanResult,
+│   │                    ErrorReason, ScanMode
 │   ├── parser/
-│   │   ├── Pdf417Parser        Refactored, pattern-based
-│   │   └── Td1MrzParser        ICAO 9303 TD1 + check-digit validation
-│   └── ColombianIdParser       Public parsing API (String → IdCardData)
+│   │   ├── pdf417/      Pdf417Parser (Normalizer/FieldLocator/FieldMapper)
+│   │   └── mrz/         Td1MrzParser (ICAO 9303 TD1 + check digits),
+│   │                    MrzCandidateExtractor (OCR lines → 3 TD1 lines)
+│   ├── scan/            ScanFrameRouter (AUTO sequencing, frame-generic,
+│   │                    shared by both platforms), ScanDebug (opt-in
+│   │                    diagnostics hook)
+│   └── ColombianIdParser       Public parsing API (raw → ScanResult)
 │
 ├── androidMain/         AAR for the Android client
 │   ├── scanner/         CameraX + ML Kit (BarcodeScanning + TextRecognition)
 │   └── ui/              Composable IdScannerScreen + result callback
 │
 └── iosMain/             XCFramework for the iOS client
-    ├── scanner/         AVFoundation + Vision (VNDetectBarcodes + VNRecognizeText)
-    └── ui/              Swift-friendly API, wrapped in SwiftUI by the client
+    ├── scanner/         AVCaptureMetadataOutput (PDF417) + Vision
+    │                    (VNRecognizeText for MRZ; VNDetectBarcodes fallback)
+    └── ui/              IdScanner factory → UIViewController, wrapped in
+                         SwiftUI by the client
 ```
 
 ### Layering principle
@@ -134,8 +141,8 @@ looks like*, not by *where it falls* in the token list.
 
 **Why:** The fragility of the 2020 code is entirely in positional indexing plus a
 `corrimiento` counter that shifts indices when a second name/surname is missing.
-Replacing "sex is at index 6 + shift" with "the demographic block is the token
-matching `\d{2}\d{8}[MF]\d*[OAB+-]+`" eliminates the shift logic.
+Replacing "sex is at index 6 + shift" with "the demographic block is the field
+matching sex+date+RH (either observed shape)" eliminates the shift logic.
 
 **Bonus:** This converges with the MRZ parser. Both become
 *normalize → locate fields by pattern → map to `IdCardData`*. One shape, two
@@ -177,6 +184,20 @@ ISO-8859-1 preserves the ASCII fields the pattern-based locator anchors on.
 marginal on real cards (slow lock-on). Android analyzes at 2560×1440; iOS uses
 the 4K session preset (no 1440p preset exists) with a 1080p fallback.
 
+### D8 — Names are two merged strings; a 4-way split is unrecoverable
+
+**Decision:** `IdCardData` exposes `givenNames` and `surnames` (merged,
+non-null) instead of first/second name/surname fields.
+
+**Why:** Compound names break any split. In the MRZ, the space inside
+"DE LA OSSA" and the separator before "TOVAR" are the same `<` character —
+the boundary does not exist in the encoding. In the PDF417, fields are
+fixed-width and padded with separator runs while compound-name spaces are
+single, so only the boundary between the *first* surname and the rest is
+recoverable (the normalizer preserves runs as field boundaries for exactly
+this reason). Exposing a fake 4-way split would silently corrupt compound
+names; merging is what KYC flows consume anyway.
+
 ---
 
 ## 4. Data Model
@@ -187,10 +208,8 @@ given source cannot provide are `null`.
 ```kotlin
 data class IdCardData(
     val documentNumber: String,      // NUIP, normalized (no leading zeros)
-    val firstName: String,
-    val secondName: String?,
-    val firstSurname: String,
-    val secondSurname: String?,
+    val givenNames: String,          // merged: "FABIAN GUILLERMO"
+    val surnames: String,            // merged: "DE LA OSSA TOVAR"
     val birthDate: LocalDate?,
     val sex: Sex,                     // MALE, FEMALE, UNSPECIFIED
     val bloodType: String?,          // e.g. "O+"; PDF417 only, null for MRZ
@@ -207,7 +226,7 @@ enum class DocumentSource { PDF417, MRZ }
 | Field            | PDF417 (yellow) | MRZ (digital) |
 |------------------|:---------------:|:-------------:|
 | documentNumber   | ✅              | ✅            |
-| names / surnames | ✅              | ✅            |
+| givenNames / surnames | ✅         | ✅            |
 | birthDate        | ✅              | ✅            |
 | sex              | ✅              | ✅            |
 | bloodType (RH)   | ✅              | ❌ (null)     |
@@ -237,6 +256,12 @@ sealed interface ScanResult {
 enum class ErrorReason {
     INPUT_TOO_SHORT, PATTERN_NOT_FOUND, CHECK_DIGIT_FAILED, UNKNOWN_FORMAT
 }
+
+enum class ScanMode { AUTO, PDF417_ONLY, MRZ_ONLY }
+
+// Opt-in diagnostics for debugging documents that fail to scan.
+// OFF by default; events include document data — dev use only (§7).
+object ScanDebug { var listener: ((String) -> Unit)? }
 ```
 
 ### Scanning UI API (platform)
@@ -251,8 +276,17 @@ IdScannerScreen(
 )
 ```
 
-iOS: an equivalent Swift-friendly entry point returning `IdCardData`, wrapped by
-the client in a `UIViewControllerRepresentable` for SwiftUI.
+iOS: the `IdScanner` factory returns a plain `UIViewController` (a factory
+because Kotlin subclasses of Objective-C classes cannot be exported to the
+framework header), wrapped by the client in a `UIViewControllerRepresentable`:
+
+```swift
+IdScanner.shared.viewController(
+    mode: .auto_,                  // `auto` is reserved in ObjC
+    onResult: { data in /* IdCardData */ },
+    onCancel: { }
+)
+```
 
 ### `ScanMode.AUTO`
 
@@ -280,12 +314,13 @@ Camera frame
 
 ### 6.1 MRZ (TD1) — new, deterministic
 
-The digital card is ICAO 9303 **TD1**: three lines of 30 characters.
+The digital card is ICAO 9303 **TD1**: three lines of 30 characters. Real
+cards use document code `IC` + issuing state `COL`:
 
 ```
-Line 1: I<CCOL0000000012<<<<<<<<<<<<<<   doc type, country, document serial
-Line 2: 8808213F3101300COL1234567890<9   birth, sex, expiry, NUIP (real cédula)
-Line 3: MARTINEZ<GARCIA<MARIA<DANIELA<    surnames << given names
+Line 1: ICCOL000000012<<<<<<<<<<<<<<<<   doc code, country, document serial
+Line 2: 8808213F3101300COL1234567890<8   birth, sex, expiry, NUIP (real cédula)
+Line 3: VELEZ<RUIZ<<GERONIMO<<<<<<<<<<   surnames << given names
 ```
 
 Parsing notes:
@@ -294,11 +329,26 @@ Parsing notes:
   (`1234567890`), **not** the document serial on line 1.
 - **Birth date** is `YYMMDD`; the century is inferred with a pivot window
   (e.g. `88` → 1988).
-- **Names/surnames** on line 3 are split on `<`; filler `<` characters are
-  dropped, and `<<` separates surnames from given names.
+- **Line 3 groups are merged** (D8): `<<` separates surnames from given
+  names, but a single `<` is both the word separator and the space inside a
+  compound name — the groups are returned as merged strings.
 - **Check digits** (ICAO 9303) validate that OCR did not corrupt the read —
-  parse fails with `CHECK_DIGIT_FAILED` rather than returning garbage.
+  parse fails with `CHECK_DIGIT_FAILED` rather than returning garbage. Real
+  cards validate with the standard segmentation (verified on-device); the
+  serial check digit may be printed as `<` (absent), in which case only the
+  composite covers the serial.
+- **OCR hardening** (root-caused from real-device diagnostics):
+  `MrzCandidateExtractor` re-pads trailing `<` runs to exactly 30 chars
+  (OCR rarely counts fillers right), and the parser repairs
+  letter-for-digit confusions (O→0, I→1, S→5, …) in the numeric zones
+  before validation — a wrong repair is still rejected by the check digits.
 - **Blood type is absent** in the MRZ → `bloodType = null`.
+
+> **Caveat:** the public Registraduría specimen image (`back-ccd.png`)
+> prints composite check digit `9` where the computation over its own
+> characters gives `8` — the artwork is internally invalid and correctly
+> rejected. Do not use it to validate a scanner. (The sample above shows
+> the corrected digit.)
 
 ### 6.2 PDF417 — refactored from the 2020 code
 
@@ -307,10 +357,13 @@ and the `corrimiento` counter with pattern-based field location (see D3, D4):
 
 ```
 Pdf417Parser
-├── Normalizer     cleans the raw string (equivalent of the old replaceAll)
-├── FieldLocator   identifies each token by pattern, without magic indices
-│                  e.g. "the 10-digit token is the cédula";
-│                       "the token matching date+sex+RH is the demographic block"
+├── Normalizer     raw string → FIELDS: separator RUNS are field
+│                  boundaries (real cards pad fixed-width fields with
+│                  runs); single spaces stay inside a field, so
+│                  compound names survive whole
+├── FieldLocator   identifies each field by pattern, without magic indices
+│                  e.g. "the 10-digit + surname field is the cédula";
+│                       "the field matching sex+date+RH is the demographic block"
 └── FieldMapper    builds IdCardData
 ```
 
@@ -332,6 +385,12 @@ Design constraints baked into the library:
 - **In-memory hand-off only.** The library returns `IdCardData` to the client;
   what happens next is the client's responsibility and outside this library's
   scope.
+
+One deliberate, opt-in exception: `ScanDebug.listener` (off by default)
+emits pipeline diagnostics — including raw OCR lines and MRZ candidates —
+so a developer can debug documents that fail to scan. Enabling it is an
+explicit decision on the developer's own device and must never ship
+enabled in production.
 
 ---
 
@@ -398,12 +457,28 @@ static framework carries no resource bundle.
   release asset. CI (`ci.yml`) runs JVM/Android tests on Linux and
   Kotlin/Native tests on macOS for every PR.
 
+### Post-release hardening (v0.1.1)
+
+Root-caused from real-device diagnostics (`ScanDebug`) after v0.1.0:
+
+- **MRZ OCR robustness**: trailing-filler re-padding, letter-for-digit
+  repairs in numeric zones, optional serial check digit (§6.1).
+- **Merged name model** (D8): `givenNames`/`surnames` replace the 4-way
+  split, with the field-aware PDF417 pipeline (separator runs = field
+  boundaries) so compound surnames like "DE LA OSSA TOVAR" survive whole.
+- Finding recorded: the public Registraduría specimen image is internally
+  invalid (composite check digit) — rejecting it is D5 working.
+
 ---
 
 ## 9. Open Items
 
-- **Real PDF417 test strings.** Phase 1a depends on access to anonymized real
-  strings from 2020. If unavailable, the golden set must be built from the format
-  spec via synthetic strings — weaker, but viable.
+- ~~**Real PDF417 test strings.**~~ Resolved: the golden set was validated
+  against a real donated card (its anatomy is reconstructed synthetically in
+  the committed fixture; the raw document itself is never committed).
 - **Blood-type gap for digital cards.** Product decision needed on how client
   flows handle `bloodType == null` when reading the new card.
+- **Hyphenated surnames** (e.g. `GARCIA-LOPEZ`): rejected by the PDF417
+  name-field patterns today (pre-existing behavior, kept deliberately —
+  widening the character class would admit binary junk). Revisit if a real
+  card with a hyphenated name appears.

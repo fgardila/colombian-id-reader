@@ -38,9 +38,19 @@ class MrzCandidateExtractorTest {
     }
 
     @Test
-    fun rejectsLinesOfWrongLength() {
-        assertNull(MrzCandidateExtractor.extract(listOf(card[0].dropLast(1), card[1], card[2])))
-        assertNull(MrzCandidateExtractor.extract(listOf(card[0] + "<", card[1], card[2])))
+    fun repairsTrailingFillerDrift() {
+        // OCR rarely counts a trailing '<' run right: lengths drift both
+        // ways (observed 24-36 on real scans). The run carries no data,
+        // so the extractor re-pads to exactly 30.
+        val drifted = listOf(card[0].dropLast(3), card[1], card[2] + "<<<<")
+        assertEquals(card, MrzCandidateExtractor.extract(drifted))
+    }
+
+    @Test
+    fun rejectsLinesWhoseContentOverflows() {
+        // More than 30 chars of real (non-filler) content is not drift.
+        val overflow = "A".repeat(31)
+        assertNull(MrzCandidateExtractor.extract(listOf(overflow, card[1], card[2])))
     }
 
     @Test

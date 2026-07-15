@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import android.util.Log
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.code93.colombian_id_reader.model.IdCardData
 import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
 private sealed interface DemoScreen {
@@ -72,6 +75,32 @@ private fun HomeScreen(onScan: (ScanMode) -> Unit) {
             OutlinedButton(onClick = { onScan(ScanMode.PDF417_ONLY) }) { Text("Solo PDF417") }
             OutlinedButton(onClick = { onScan(ScanMode.MRZ_ONLY) }) { Text("Solo MRZ") }
         }
+
+        Spacer(Modifier.height(24.dp))
+        // Herramienta de desarrollo: vuelca el diagnóstico del pipeline de
+        // escaneo (incluye datos del documento) a Logcat, tag ColombianIdScan.
+        var diagnostics by remember { mutableStateOf(ScanDebug.listener != null) }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Switch(
+                checked = diagnostics,
+                onCheckedChange = { enabled ->
+                    diagnostics = enabled
+                    ScanDebug.listener =
+                        if (enabled) { message -> Log.d("ColombianIdScan", message) } else null
+                }
+            )
+            Text("Diagnóstico en Logcat", style = MaterialTheme.typography.bodyMedium)
+        }
+        if (diagnostics) {
+            Text(
+                "adb logcat -s ColombianIdScan",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
     }
 }
 
@@ -88,10 +117,8 @@ private fun ResultScreen(data: IdCardData, onScanAgain: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         Field("Número de documento", data.documentNumber)
-        Field("Primer nombre", data.firstName)
-        Field("Segundo nombre", data.secondName)
-        Field("Primer apellido", data.firstSurname)
-        Field("Segundo apellido", data.secondSurname)
+        Field("Nombres", data.givenNames)
+        Field("Apellidos", data.surnames)
         Field("Fecha de nacimiento", data.birthDate?.toString())
         Field("Sexo", data.sex.name)
         Field("Tipo de sangre (RH)", data.bloodType)

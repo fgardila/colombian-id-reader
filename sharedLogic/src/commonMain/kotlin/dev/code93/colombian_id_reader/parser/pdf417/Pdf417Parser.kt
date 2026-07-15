@@ -16,8 +16,7 @@ internal object Pdf417Parser {
         if (raw.length < MIN_RAW_LENGTH) {
             return ScanResult.Error(ErrorReason.INPUT_TOO_SHORT)
         }
-        val tokens = Pdf417Normalizer.tokenize(raw)
-        val fields = Pdf417FieldLocator.locate(tokens)
+        val fields = Pdf417FieldLocator.locate(Pdf417Normalizer.fields(raw))
             ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
         return ScanResult.Success(Pdf417FieldMapper.map(fields))
     }

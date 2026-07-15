@@ -2,24 +2,26 @@ package dev.code93.colombian_id_reader.parser.pdf417
 
 /**
  * Identifies each field by *what it looks like*, not by *where it falls*
- * in the token list (ARCHITECTURE.md D4). This replaces the legacy
- * positional indexing, the `corrimiento` shift and all three PubDSK
- * name/surname branches with two anchors and one interval:
+ * in the field list (ARCHITECTURE.md D4):
  *
- * - the **cédula token**: the token whose last 10 digits are followed by
- *   an uppercase word (the first surname);
- * - the **demographic block**: the token encoding sex + birth date + RH,
- *   in either observed shape (`0M19880821…O+` or `0219880821M…O+`);
- * - the **name tokens**: every alphabetic token strictly between the two
- *   anchors — 1 of them means first name only, 2 mean second surname +
- *   first name, 3+ mean second surname + first name + second name(s).
+ * - the **cédula field**: the field whose last 10 digits are followed by
+ *   the first surname (which may be compound: "…7890DE LA OSSA");
+ * - the **demographic field**: sex + birth date + RH in either observed
+ *   shape, optionally followed by space-glued binary junk;
+ * - the **name fields**: alphabetic fields strictly between the two
+ *   anchors — [second surname?, given name(s)...], each possibly
+ *   containing in-field spaces.
+ *
+ * Known limitation: junk glued to the cédula digits by a single space
+ * is rejected by the anchored prefix — observed anatomy always has a
+ * separator run before that field.
  */
 internal object Pdf417FieldLocator {
 
     class LocatedFields(
         val cedula: String,
         val firstSurname: String,
-        val nameTokens: List<String>,
+        val nameFields: List<String>,
         val sex: Char,
         val birthDateRaw: String,
         val bloodType: String
@@ -27,22 +29,22 @@ internal object Pdf417FieldLocator {
 
     private class Demographic(val sex: Char, val birthDateRaw: String, val bloodType: String)
 
-    /** e.g. "04620001234567GARCIA": junk digits + 10-digit cédula + first surname. */
-    private val cedulaToken = Regex("^\\d*?(\\d{10})([A-Z][A-Za-z]*)$")
+    /** e.g. "0462001034567890DE LA OSSA": junk digits + 10-digit cédula + first surname. */
+    private val cedulaField = Regex("^\\d*?(\\d{10})([A-Z][A-Za-z ]*)$")
 
-    /** Sex-first demographic block: 0M19880821…O+ */
-    private val demographicSexFirst = Regex("^\\d([MF])(\\d{8})\\d*(AB|A|B|O)([+-])$")
+    /** Sex-first demographic: 0M19930815270010O+ [space-glued junk tail]. */
+    private val demographicSexFirst = Regex("^\\d([MF])(\\d{8})\\d*(AB|A|B|O)([+-])(?: .*)?$")
 
-    /** Date-first demographic block: 0219880821M…O+ */
-    private val demographicDateFirst = Regex("^\\d{2}(\\d{8})([MF])\\d*(AB|A|B|O)([+-])$")
+    /** Date-first demographic: 0219880821M0045O+ [space-glued junk tail]. */
+    private val demographicDateFirst = Regex("^\\d{2}(\\d{8})([MF])\\d*(AB|A|B|O)([+-])(?: .*)?$")
 
-    private val alphabeticToken = Regex("^[A-Za-z]+$")
+    private val nameField = Regex("^[A-Za-z][A-Za-z ]*$")
 
-    fun locate(tokens: List<String>): LocatedFields? {
+    fun locate(fields: List<String>): LocatedFields? {
         var cedulaIndex = -1
         var cedulaMatch: MatchResult? = null
-        for (index in tokens.indices) {
-            val match = cedulaToken.matchEntire(tokens[index]) ?: continue
+        for (index in fields.indices) {
+            val match = cedulaField.matchEntire(fields[index]) ?: continue
             cedulaIndex = index
             cedulaMatch = match
             break
@@ -54,36 +56,36 @@ internal object Pdf417FieldLocator {
 
         var demographicIndex = -1
         var demographic: Demographic? = null
-        for (index in cedulaIndex + 1 until tokens.size) {
-            demographic = demographicOf(tokens[index]) ?: continue
+        for (index in cedulaIndex + 1 until fields.size) {
+            demographic = demographicOf(fields[index]) ?: continue
             demographicIndex = index
             break
         }
         if (demographic == null) return null
 
-        val nameTokens = tokens.subList(cedulaIndex + 1, demographicIndex)
-            .filter { alphabeticToken.matches(it) }
-        if (nameTokens.isEmpty()) return null
+        val nameFields = fields.subList(cedulaIndex + 1, demographicIndex)
+            .filter { nameField.matches(it) }
+        if (nameFields.isEmpty()) return null
 
         return LocatedFields(
             cedula = cedula,
             firstSurname = cedulaMatch.groupValues[2],
-            nameTokens = nameTokens,
+            nameFields = nameFields,
             sex = demographic.sex,
             birthDateRaw = demographic.birthDateRaw,
             bloodType = demographic.bloodType
         )
     }
 
-    private fun demographicOf(token: String): Demographic? {
-        demographicSexFirst.matchEntire(token)?.let {
+    private fun demographicOf(field: String): Demographic? {
+        demographicSexFirst.matchEntire(field)?.let {
             return Demographic(
                 sex = it.groupValues[1][0],
                 birthDateRaw = it.groupValues[2],
                 bloodType = it.groupValues[3] + it.groupValues[4]
             )
         }
-        demographicDateFirst.matchEntire(token)?.let {
+        demographicDateFirst.matchEntire(field)?.let {
             return Demographic(
                 sex = it.groupValues[2][0],
                 birthDateRaw = it.groupValues[1],
