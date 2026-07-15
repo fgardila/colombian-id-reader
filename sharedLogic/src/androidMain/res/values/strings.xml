@@ -6,4 +6,9 @@
     <string name="colombian_id_scanner_permission_rationale">Para escanear el documento se necesita acceso a la cámara. La imagen se procesa únicamente en este dispositivo: no se guarda ni se envía.</string>
     <string name="colombian_id_scanner_grant_permission">Conceder permiso</string>
     <string name="colombian_id_scanner_cancel">Cancelar</string>
+    <string name="colombian_id_scanner_hint_no_document">Apunte al documento</string>
+    <string name="colombian_id_scanner_hint_too_small">Acérquese al documento</string>
+    <string name="colombian_id_scanner_hint_skewed">Enderece el documento</string>
+    <string name="colombian_id_scanner_hint_hold_steady">Mantenga el dispositivo firme</string>
+    <string name="colombian_id_scanner_hint_pass">Leyendo…</string>
 </resources>

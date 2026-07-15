@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ private const val WINDOW_WIDTH_FRACTION = 0.85f
 internal fun ScannerOverlay(
     instruction: String,
     cancelLabel: String,
+    highlight: Boolean,
     onCancel: () -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -46,16 +48,27 @@ internal fun ScannerOverlay(
         ) {
             drawRect(Color.Black.copy(alpha = 0.6f))
             val cutout = Size(windowWidth.toPx(), windowHeight.toPx())
+            val topLeft = Offset(
+                (size.width - cutout.width) / 2f,
+                (size.height - cutout.height) / 2f
+            )
             drawRoundRect(
                 color = Color.Transparent,
-                topLeft = Offset(
-                    (size.width - cutout.width) / 2f,
-                    (size.height - cutout.height) / 2f
-                ),
+                topLeft = topLeft,
                 size = cutout,
                 cornerRadius = CornerRadius(16.dp.toPx()),
                 blendMode = BlendMode.Clear
             )
+            if (highlight) {
+                // Gate open: highlight the framing window (§6 "Pass").
+                drawRoundRect(
+                    color = Color(0xFF4CAF50),
+                    topLeft = topLeft,
+                    size = cutout,
+                    cornerRadius = CornerRadius(16.dp.toPx()),
+                    style = Stroke(width = 3.dp.toPx())
+                )
+            }
         }
 
         Text(

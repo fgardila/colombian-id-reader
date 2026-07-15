@@ -4,9 +4,11 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.DetectedObject
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import dev.code93.colombian_id_reader.model.ScanMode
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -31,8 +33,17 @@ internal class MlKitDetectors : AutoCloseable {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
+    private val objectDetector by lazy {
+        ObjectDetection.getClient(
+            ObjectDetectorOptions.Builder()
+                .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+                .build() // single most-prominent object, no classification
+        )
+    }
+
     private var barcodeUsed = false
     private var textUsed = false
+    private var objectUsed = false
 
     /** Raw payload of the first PDF417 on the frame, or null. */
     suspend fun pdf417(image: InputImage): String? = try {
@@ -61,8 +72,17 @@ internal class MlKitDetectors : AutoCloseable {
         emptyList()
     }
 
+    /** Most prominent object on the frame (capture-gate candidate), or null. */
+    suspend fun detectObject(image: InputImage): DetectedObject? = try {
+        objectUsed = true
+        objectDetector.process(image).await().firstOrNull()
+    } catch (e: Exception) {
+        null
+    }
+
     override fun close() {
         if (barcodeUsed) barcodeScanner.close()
         if (textUsed) textRecognizer.close()
+        if (objectUsed) objectDetector.close()
     }
 }

@@ -36,8 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dev.code93.colombian_id_reader.model.DetectorFilter
+import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.IdCardData
 import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.scanner.IdFrameAnalyzer
 import dev.code93.colombian_id_reader.scanner.MlKitDetectors
 import dev.code93.colombian_id_reader.scanner.bindScanner
@@ -45,15 +48,21 @@ import dev.code93.colombian_id_reader.sharedLogic.R
 import java.util.concurrent.Executors
 
 /**
- * Scanning screen for both cédula generations (ARCHITECTURE.md §5).
+ * Scanning screen for both cédula generations (ARCHITECTURE.md §5,
+ * ARCHITECTURE-0.2.0.md §4). Every frame passes the capture gate; its
+ * framing hints drive the overlay text and, optionally, [onGateHint]
+ * for clients with their own guidance UI.
  *
- * Requests the camera permission itself, shows a card-framing overlay,
- * and delivers exactly one [IdCardData] via [onResult]. The library
- * never persists, transmits or logs what the camera sees (§7).
+ * Requests the camera permission itself and delivers exactly one
+ * [IdCardData] via [onResult]. The library never persists, transmits or
+ * logs what the camera sees (§7). [detectorFilter] is a development
+ * aid — leave it at [DetectorFilter.ALL] in production.
  */
 @Composable
 fun IdScannerScreen(
-    mode: ScanMode = ScanMode.AUTO,
+    mode: ScanMode = ScanMode.ColombianId,
+    detectorFilter: DetectorFilter = DetectorFilter.ALL,
+    onGateHint: ((GateHint) -> Unit)? = null,
     onResult: (IdCardData) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -74,7 +83,7 @@ fun IdScannerScreen(
     BackHandler(onBack = onCancel)
 
     if (hasPermission) {
-        ScannerContent(mode, onResult, onCancel)
+        ScannerContent(detectorFilter, onGateHint, onResult, onCancel)
     } else {
         PermissionRationale(
             onRequest = { launcher.launch(Manifest.permission.CAMERA) },
@@ -85,7 +94,8 @@ fun IdScannerScreen(
 
 @Composable
 private fun ScannerContent(
-    mode: ScanMode,
+    detectorFilter: DetectorFilter,
+    onGateHint: ((GateHint) -> Unit)?,
     onResult: (IdCardData) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -93,13 +103,22 @@ private fun ScannerContent(
     val executor = remember { Executors.newSingleThreadExecutor() }
     val detectors = remember { MlKitDetectors() }
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var hint by remember { mutableStateOf<GateHint?>(null) }
 
-    val analyzer = remember(mode) {
-        IdFrameAnalyzer(mode, detectors, onSuccess = { data ->
-            // Stop frames at the source before handing the result over.
-            provider?.unbindAll()
-            onResult(data)
-        })
+    val analyzer = remember(detectorFilter) {
+        IdFrameAnalyzer(
+            filter = detectorFilter,
+            detectors = detectors,
+            onSuccess = { data ->
+                // Stop frames at the source before handing the result over.
+                provider?.unbindAll()
+                onResult(data)
+            },
+            onHint = { newHint ->
+                hint = newHint
+                onGateHint?.invoke(newHint)
+            }
+        )
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -118,19 +137,30 @@ private fun ScannerContent(
             }
         )
         ScannerOverlay(
-            instruction = stringResource(R.string.colombian_id_scanner_instruction),
+            instruction = stringResource(hint.instructionRes()),
             cancelLabel = stringResource(R.string.colombian_id_scanner_cancel),
+            highlight = hint == GateHint.PASS,
             onCancel = onCancel
         )
     }
 
     DisposableEffect(Unit) {
         onDispose {
+            ScanDebug.log { analyzer.stats.summary() }
             provider?.unbindAll()
             detectors.close()
             executor.shutdown()
         }
     }
+}
+
+private fun GateHint?.instructionRes(): Int = when (this) {
+    null -> R.string.colombian_id_scanner_instruction
+    GateHint.NO_DOCUMENT -> R.string.colombian_id_scanner_hint_no_document
+    GateHint.TOO_SMALL -> R.string.colombian_id_scanner_hint_too_small
+    GateHint.SKEWED -> R.string.colombian_id_scanner_hint_skewed
+    GateHint.HOLD_STEADY -> R.string.colombian_id_scanner_hint_hold_steady
+    GateHint.PASS -> R.string.colombian_id_scanner_hint_pass
 }
 
 @Composable

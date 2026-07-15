@@ -71,6 +71,7 @@ kotlin {
             implementation(libs.androidx.camera.view)
             // On-device recognition (bundled models, no Play Services app)
             implementation(libs.mlkit.barcodeScanning)
+            implementation(libs.mlkit.objectDetection)
             implementation(libs.mlkit.textRecognition)
             implementation(libs.kotlinx.coroutinesPlayServices)
             // Scanning screen (native Compose, androidMain only — D2)
