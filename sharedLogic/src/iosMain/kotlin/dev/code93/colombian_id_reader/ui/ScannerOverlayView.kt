@@ -28,6 +28,7 @@ internal class ScannerOverlayView(
 ) : UIView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0)) {
 
     private val scrimLayer = CAShapeLayer()
+    private val highlightLayer = CAShapeLayer()
     private val instructionLabel = UILabel()
 
     init {
@@ -37,12 +38,27 @@ internal class ScannerOverlayView(
         scrimLayer.fillColor = UIColor.blackColor.colorWithAlphaComponent(0.6).CGColor
         layer.addSublayer(scrimLayer)
 
+        // Gate open (§6 "Pass"): highlight the framing window.
+        highlightLayer.fillColor = UIColor.clearColor.CGColor
+        highlightLayer.strokeColor = UIColor.greenColor.CGColor
+        highlightLayer.lineWidth = 3.0
+        highlightLayer.hidden = true
+        layer.addSublayer(highlightLayer)
+
         instructionLabel.text = instructionText
         instructionLabel.textColor = UIColor.whiteColor
         instructionLabel.textAlignment = NSTextAlignmentCenter
         instructionLabel.numberOfLines = 0
         instructionLabel.font = UIFont.systemFontOfSize(16.0)
         addSubview(instructionLabel)
+    }
+
+    fun setInstruction(text: String) {
+        instructionLabel.text = text
+    }
+
+    fun setHighlighted(highlighted: Boolean) {
+        highlightLayer.hidden = !highlighted
     }
 
     override fun layoutSubviews() {
@@ -65,6 +81,10 @@ internal class ScannerOverlayView(
             UIBezierPath.bezierPathWithRoundedRect(windowRect, cornerRadius = 16.0)
         )
         scrimLayer.path = path.CGPath
+
+        highlightLayer.frame = bounds
+        highlightLayer.path =
+            UIBezierPath.bezierPathWithRoundedRect(windowRect, cornerRadius = 16.0).CGPath
 
         val windowBottom = (height + windowHeight) / 2.0
         instructionLabel.setFrame(

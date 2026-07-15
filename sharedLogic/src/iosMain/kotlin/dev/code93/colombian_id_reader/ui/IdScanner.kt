@@ -1,7 +1,6 @@
 package dev.code93.colombian_id_reader.ui
 
 import dev.code93.colombian_id_reader.model.IdCardData
-import dev.code93.colombian_id_reader.model.ScanMode
 import platform.UIKit.UIViewController
 
 /**
@@ -11,40 +10,28 @@ import platform.UIKit.UIViewController
  *
  * ```swift
  * IdScanner.shared.viewController(
- *     mode: .auto,
  *     onResult: { data in ... },
  *     onCancel: { ... }
  * )
  * ```
  *
- * A factory (rather than a public class) because Kotlin subclasses of
- * Objective-C classes cannot be exported to the framework header.
+ * The scanned category is ColombianId (the only ScanMode in 0.2.0, so
+ * it is implied). A factory (rather than a public class) because Kotlin
+ * subclasses of Objective-C classes cannot be exported to the framework
+ * header.
  */
 public object IdScanner {
 
-    /** Scanner with the default Spanish UI strings. */
+    /** Scanner with default options (Spanish UI strings, all detectors). */
     public fun viewController(
-        mode: ScanMode,
         onResult: (IdCardData) -> Unit,
         onCancel: () -> Unit
-    ): UIViewController = IdScannerViewController(mode, onResult, onCancel)
+    ): UIViewController = viewController(IdScannerOptions(), onResult, onCancel)
 
-    /** Scanner with client-localized UI strings. */
+    /** Scanner with custom [IdScannerOptions]. */
     public fun viewController(
-        mode: ScanMode,
+        options: IdScannerOptions,
         onResult: (IdCardData) -> Unit,
-        onCancel: () -> Unit,
-        instructionText: String,
-        cancelText: String,
-        permissionRationaleText: String,
-        grantPermissionText: String
-    ): UIViewController = IdScannerViewController(
-        mode = mode,
-        onResult = onResult,
-        onCancel = onCancel,
-        instructionText = instructionText,
-        cancelText = cancelText,
-        permissionRationaleText = permissionRationaleText,
-        grantPermissionText = grantPermissionText
-    )
+        onCancel: () -> Unit
+    ): UIViewController = IdScannerViewController(options, onResult, onCancel)
 }

@@ -2,6 +2,7 @@
 
 package dev.code93.colombian_id_reader.scanner
 
+import dev.code93.colombian_id_reader.scan.GateObservation
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.useContents
@@ -12,10 +13,12 @@ import platform.ImageIO.kCGImagePropertyOrientationRight
 import platform.Vision.VNBarcodeObservation
 import platform.Vision.VNBarcodeSymbologyPDF417
 import platform.Vision.VNDetectBarcodesRequest
+import platform.Vision.VNDetectDocumentSegmentationRequest
 import platform.Vision.VNImageRequestHandler
 import platform.Vision.VNRecognizeTextRequest
 import platform.Vision.VNRecognizedText
 import platform.Vision.VNRecognizedTextObservation
+import platform.Vision.VNRectangleObservation
 import platform.Vision.VNRequest
 import platform.Vision.VNRequestTextRecognitionLevelAccurate
 import platform.posix.memcpy
@@ -47,6 +50,42 @@ internal class VisionDetectors {
             // filler '<' runs and codes into dictionary words.
             usesLanguageCorrection = false
         }
+    }
+
+    private val documentRequest by lazy {
+        // Built-in document detector (iOS 15+): quad + confidence, made
+        // for exactly this — unlike VNDetectRectangles it doesn't fire on
+        // every high-contrast rectangle in view.
+        VNDetectDocumentSegmentationRequest(completionHandler = null)
+    }
+
+    /**
+     * Quad of the most confident document on the frame, in PIXEL
+     * coordinates of the oriented (portrait) frame, y-down — or null.
+     * Vision reports normalized bottom-left-origin coordinates; both
+     * conversions happen here.
+     */
+    fun documentQuad(
+        buffer: CVImageBufferRef,
+        frameWidth: Float,
+        frameHeight: Float
+    ): GateObservation.Quad? {
+        if (!perform(buffer, documentRequest)) return null
+        val observation = documentRequest.results
+            ?.filterIsInstance<VNRectangleObservation>()
+            ?.maxByOrNull { it.confidence }
+            ?: return null
+
+        fun point(x: Double, y: Double) = GateObservation.Quad.Point(
+            (x * frameWidth).toFloat(),
+            ((1.0 - y) * frameHeight).toFloat()
+        )
+        return GateObservation.Quad(
+            tl = observation.topLeft.useContents { point(x, y) },
+            tr = observation.topRight.useContents { point(x, y) },
+            br = observation.bottomRight.useContents { point(x, y) },
+            bl = observation.bottomLeft.useContents { point(x, y) }
+        )
     }
 
     /** ISO-8859-1 payload of the first PDF417 on the frame, or null. */

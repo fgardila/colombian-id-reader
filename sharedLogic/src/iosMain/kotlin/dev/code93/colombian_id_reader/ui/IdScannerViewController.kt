@@ -2,8 +2,9 @@
 
 package dev.code93.colombian_id_reader.ui
 
+import dev.code93.colombian_id_reader.model.DetectorFilter
+import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.IdCardData
-import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.scanner.IdCaptureSession
 import dev.code93.colombian_id_reader.scanner.IdFrameProcessor
 import dev.code93.colombian_id_reader.scanner.VisionDetectors
@@ -44,38 +45,20 @@ import platform.darwin.dispatch_get_main_queue
  * exactly one [IdCardData] via [onResult] on the main thread. The
  * library never persists, transmits or logs what the camera sees (§7).
  *
- * UI strings default to Spanish; clients pass localized overrides via
- * the full constructor (a static framework carries no resource bundle).
+ * UI strings and behavior come from [IdScannerOptions] (a static
+ * framework carries no resource bundle, so texts are configuration).
  *
  * Internal because Kotlin subclasses of Objective-C classes are not
  * exported to the framework header — Swift reaches this through the
  * [IdScanner] factory, typed as plain UIViewController.
  */
 internal class IdScannerViewController(
-    private val mode: ScanMode,
+    private val options: IdScannerOptions,
     private val onResult: (IdCardData) -> Unit,
-    private val onCancel: () -> Unit,
-    private val instructionText: String,
-    private val cancelText: String,
-    private val permissionRationaleText: String,
-    private val grantPermissionText: String
+    private val onCancel: () -> Unit
 ) : UIViewController(nibName = null, bundle = null) {
 
-    constructor(
-        mode: ScanMode,
-        onResult: (IdCardData) -> Unit,
-        onCancel: () -> Unit
-    ) : this(
-        mode = mode,
-        onResult = onResult,
-        onCancel = onCancel,
-        instructionText = "Alinee el documento dentro del marco",
-        cancelText = "Cancelar",
-        permissionRationaleText = "Para escanear el documento se necesita acceso a la " +
-            "cámara. La imagen se procesa únicamente en este dispositivo: no se guarda " +
-            "ni se envía.",
-        grantPermissionText = "Conceder permiso"
-    )
+    private val texts: IdScannerTexts get() = options.texts
 
     private var captureSession: IdCaptureSession? = null
     private var detectors: VisionDetectors? = null
@@ -90,7 +73,7 @@ internal class IdScannerViewController(
         super.viewDidLoad()
         view.backgroundColor = UIColor.blackColor
 
-        cancelButton.setTitle(cancelText, forState = UIControlStateNormal)
+        cancelButton.setTitle(texts.cancel, forState = UIControlStateNormal)
         cancelButton.setTitleColor(UIColor.whiteColor, forState = UIControlStateNormal)
         cancelButton.addTarget(
             this, NSSelectorFromString("cancelTapped"), UIControlEventTouchUpInside
@@ -145,21 +128,31 @@ internal class IdScannerViewController(
 
     private fun showScanner() {
         val visionDetectors = VisionDetectors()
-        val processor = IdFrameProcessor(mode, visionDetectors, onSuccess = { data ->
-            // Already on the main queue (the processor dispatches).
-            captureSession?.stop()
-            onResult(data)
-        })
+        val processor = IdFrameProcessor(
+            filter = options.detectorFilter,
+            detectors = visionDetectors,
+            onSuccess = { data ->
+                // Already on the main queue (the processor dispatches).
+                captureSession?.stop()
+                onResult(data)
+            },
+            onHint = { hint ->
+                // Already on the main queue.
+                overlay?.setInstruction(texts.forHint(hint))
+                overlay?.setHighlighted(hint == GateHint.PASS)
+                options.onGateHint?.invoke(hint)
+            }
+        )
         val session = IdCaptureSession(
             processor,
-            enablePdf417Metadata = mode != ScanMode.MRZ_ONLY
+            enablePdf417Metadata = options.detectorFilter != DetectorFilter.MRZ_ONLY
         )
 
         val layer = AVCaptureVideoPreviewLayer(session = session.session)
         layer.videoGravity = AVLayerVideoGravityResizeAspectFill
         view.layer.insertSublayer(layer, atIndex = 0u)
 
-        val overlayView = ScannerOverlayView(instructionText)
+        val overlayView = ScannerOverlayView(texts.instruction)
         view.insertSubview(overlayView, belowSubview = cancelButton)
 
         detectors = visionDetectors
@@ -172,14 +165,14 @@ internal class IdScannerViewController(
     }
 
     private fun showDenied() {
-        rationaleLabel.text = permissionRationaleText
+        rationaleLabel.text = texts.permissionRationale
         rationaleLabel.textColor = UIColor.whiteColor
         rationaleLabel.textAlignment = NSTextAlignmentCenter
         rationaleLabel.numberOfLines = 0
         rationaleLabel.font = UIFont.systemFontOfSize(16.0)
         view.addSubview(rationaleLabel)
 
-        grantButton.setTitle(grantPermissionText, forState = UIControlStateNormal)
+        grantButton.setTitle(texts.grantPermission, forState = UIControlStateNormal)
         grantButton.addTarget(
             this, NSSelectorFromString("grantTapped"), UIControlEventTouchUpInside
         )
