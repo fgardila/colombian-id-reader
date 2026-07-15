@@ -1,6 +1,7 @@
 # colombian-id-reader 0.2.0 — Capture Gate & Document Routing
 
-> **Status:** in design. Builds on 0.1.0 (shipped, field-tested).
+> **Status:** implemented (Phases 1-2); field evaluation (Phase 3) pending.
+> **Decision numbering continues from `ARCHITECTURE.md` (D1–D8).**
 > **Prior art:** see `ARCHITECTURE.md` (0.1.0) for the module layout, data model,
 > parser internals, privacy constraints, and packaging. This document covers
 > **only what 0.2.0 adds** and does not restate them.
@@ -127,7 +128,7 @@ CaptureGate(accepts = setOf(DocumentFormat.Id1, DocumentFormat.Id3))
 
 **0.2.0 accepts `Id1` only.** `Id3` is defined so the abstraction is shaped
 correctly from the start, but passport capture is **not supported in this
-version** — it requires work that is out of scope here (see §4.3 and D10).
+version** — it requires work that is out of scope here (see §4.3 and D12).
 
 ### 4.2 `ScanMode` — declared category
 
@@ -153,7 +154,7 @@ ScanMode.Passport    → gate accepts Id3 → MRZ TD3          → PassportData 
 **Division of labour.** The declared mode resolves what a *person* knows without
 thinking ("I have a cédula" vs. "I have a passport"). The evidence resolves what
 the *machine* knows better than the person (amarilla vs. digital). The user is
-never asked a technical question, and D8 is unaffected — within `ColombianId`,
+never asked a technical question, and evidence-based resolution (D10; 0.1.x D8 merged names also unaffected) — within `ColombianId`,
 type resolution stays fully evidence-based.
 
 **Who sets the mode.** The SDK exposes the parameter; the **client app** decides
@@ -181,7 +182,7 @@ additionally requires (all **0.3.0**):
 - **Data model** — `IdCardData` assumes a Colombian NUIP and cannot represent a
   foreign passport holder. This is the largest piece of 0.3.0, not the gate.
 
-> If the custom-model escalation of D9 is ever triggered, passports are the most
+> If the custom-model escalation of D11 is ever triggered, passports are the most
 > likely cause — not cédulas.
 
 ### 4.4 Stage 2 — routing
@@ -190,13 +191,49 @@ Type is resolved from **extracted evidence**, and exposed to the client:
 
 ```kotlin
 enum class DocumentType { CEDULA_AMARILLA, CEDULA_DIGITAL }
+// exposed as IdCardData.documentType (computed from source)
 ```
+
+### 4.5 As-implemented notes (0.2.0)
+
+- **Engines.** Android: ML Kit **Object Detection & Tracking** (bundled,
+  STREAM_MODE, no classification) supplies bbox + trackingId; focus is a
+  subsampled variance-of-Laplacian over the center of the luma plane
+  (fixed sample grid — cost independent of resolution); skew is
+  approximated (aspect collapse with sufficient area — an axis-aligned
+  box carries no quad). iOS: **`VNDetectDocumentSegmentationRequest`**
+  (built-in document detector, quad + confidence) gives precise skew via
+  opposite-side ratios; same luma sharpness metric so the threshold is
+  one number cross-platform. **Requires iOS 15+** (library minimum).
+- **Shared core.** The verdict logic (`CaptureGate` + `GateThresholds` +
+  hysteresis) lives in `commonMain` and is unit-tested with scripted
+  observation sequences; platforms only produce `GateObservation`s. If a
+  platform detector disappoints, only the observation producer changes.
+- **Scoped amendment to the §4 diagram:** the gate suppresses the OCR
+  leg only. The **PDF417 legs stay hot** — barcode decoding is cheap and
+  self-validating (a wall never decodes), and on iOS it arrives through
+  an independent `AVCaptureMetadataOutput` callback; gating it would
+  only delay the cédula amarilla. All three §2 motivations concern the
+  text recognizer, which is fully gated.
+- **False-negative safety valve.** If a candidate is continuously
+  present for ~4s without the gate opening, the gate starts passing
+  anyway (hints keep guiding): a miscalibrated gate degrades to 0.1.x
+  latency, never to "the app won't read". Grace passes are counted
+  separately in `GateStats` so Phase 3 sees miscalibration.
+- **Debug modes.** The old `PDF417_ONLY`/`MRZ_ONLY` live on as a
+  `DetectorFilter` development parameter, outside `ScanMode`.
+- **iOS API shape.** `IdScanner.viewController(onResult:onCancel:)` and
+  `(options:onResult:onCancel:)` with a mutable `IdScannerOptions` /
+  `IdScannerTexts` (Kotlin default args don't export to ObjC; an options
+  object grows without new overloads). No `mode` parameter in 0.2.0 —
+  `ColombianId` is the only value, so it is implied; the mode-taking
+  overload arrives with `Passport` in 0.3.0 as a non-breaking addition.
 
 ---
 
 ## 5. Key decisions
 
-### D7 — Gate before read
+### D9 — Gate before read
 
 **Decision:** Every frame passes the capture gate before any barcode/OCR runs.
 
@@ -208,7 +245,7 @@ user *why* scanning isn't progressing.
 negatives). Mitigated by threshold tuning against field data (§7) and by keeping
 the gate advisory: it gates timing, not interpretation.
 
-### D8 — Identify by evidence, not by an image classifier
+### D10 — Identify by evidence, not by an image classifier
 
 **Decision:** Document type comes from what the scan **extracts**, not from
 classifying the image up front.
@@ -221,7 +258,7 @@ failure mode on top of a signal that is already conclusive.
 **Corollary:** Even if a custom model is added later (§7), it improves the
 **gate** — type identification stays with Stage 2 evidence, permanently.
 
-### D9 — No custom model until the generic gate is proven insufficient
+### D11 — No custom model until the generic gate is proven insufficient
 
 **Decision:** 0.2.0 ships with ML Kit / Vision built-ins only. A custom model is
 a **conditional fallback**, not planned work.
@@ -235,7 +272,7 @@ divergence. The built-ins may well suffice; that must be measured, not assumed.
 > detector reports "this resembles category X with confidence N", which is why it
 > is fit for gating capture quality but not for concluding document type.
 
-### D10 — Parametrize geometry and mode now; ship Colombia only
+### D12 — Parametrize geometry and mode now; ship Colombia only
 
 **Decision:** 0.2.0 introduces `DocumentFormat` (§4.1) and `ScanMode` (§4.2) as
 parametrized abstractions, while accepting **only** `Id1` / `ColombianId`.
@@ -299,9 +336,9 @@ Only if those rates fail the bar is a custom **capture-quality** model justified
 
 | # | Phase | Output |
 |---|-------|--------|
-| 1 | **Capture gate (parametrized)** | Gate on both platforms via ML Kit / Vision built-ins; validates against an accepted `DocumentFormat` set (`Id1` only); pass/fail + framing hints. |
-| 2 | **Routing + UX wiring** | `ScanMode.ColombianId` threaded through the pipeline; Stage 2 formalized behind the gate; `DocumentType` exposed; overlay consumes gate hints (§6). |
-| 3 | **Field evaluation** | FN/FP rates measured in real conditions → threshold tuning → custom-model go/no-go. |
+| 1 | **Capture gate (parametrized)** ✅ | Gate on both platforms via ML Kit / Vision built-ins; validates against an accepted `DocumentFormat` set (`Id1` only); pass/fail + framing hints. |
+| 2 | **Routing + UX wiring** ✅ | `ScanMode.ColombianId` threaded through the pipeline; Stage 2 formalized behind the gate; `DocumentType` exposed; overlay consumes gate hints (§6). |
+| 3 | **Field evaluation** | FN/FP rates measured in real conditions → threshold tuning → custom-model go/no-go. Tooling shipped: `GateStats` per-session summary (frames gated/passed, grace passes, per-hint counts, time-to-first-pass, OCR runs allowed/suppressed) surfaced through the demos' diagnostics toggle. Protocol: (FN) hold each real cédula correctly framed — expect a high pass rate and first pass < ~1.5s; (FP) aim at a wall, a hand, a book page — expect ≈0 passes; mockups on a monitor legitimately pass the gate (Stage 2 filters them — record, don't count as failure). |
 
 **Deferred / conditional**
 
