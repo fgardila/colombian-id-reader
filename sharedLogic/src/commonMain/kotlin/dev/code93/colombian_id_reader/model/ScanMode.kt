@@ -1,10 +1,19 @@
 package dev.code93.colombian_id_reader.model
 
 /**
- * Which detectors the scanning screen runs on each camera frame.
+ * The document CATEGORY the client declares before scanning
+ * (ARCHITECTURE-0.2.0.md §4.2). The declared mode resolves what a
+ * person knows without thinking ("I have a cédula"); the evidence
+ * resolves what the machine knows better (amarilla vs digital) — the
+ * user is never asked a technical question.
  *
- * [AUTO] serves both document generations: PDF417 first and, if no
- * barcode is found on the frame, the text recognizer looking for the
- * TD1 MRZ pattern.
+ * The capture gate is configured from the mode (ColombianId → ID-1
+ * geometry). For detector-level debugging see [DetectorFilter].
  */
-enum class ScanMode { AUTO, PDF417_ONLY, MRZ_ONLY }
+sealed interface ScanMode {
+
+    /** Cédula amarilla or digital — resolved by evidence, not by the user. */
+    data object ColombianId : ScanMode
+
+    // data object Passport : ScanMode   // Reserved for 0.3.0 (TD3, Id3).
+}

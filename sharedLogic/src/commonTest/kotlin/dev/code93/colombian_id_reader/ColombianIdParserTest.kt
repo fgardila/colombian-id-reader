@@ -4,6 +4,7 @@ import dev.code93.colombian_id_reader.fixtures.MrzFixtureBuilder
 import dev.code93.colombian_id_reader.fixtures.MrzFixtures
 import dev.code93.colombian_id_reader.fixtures.Pdf417Fixtures
 import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
 import dev.code93.colombian_id_reader.model.ScanResult
 import kotlin.test.Test
@@ -36,6 +37,15 @@ class ColombianIdParserTest {
         val blob = MrzFixtures.validCard.joinToString("\n")
         val result = ColombianIdParser.parseMrz(listOf(blob))
         assertIs<ScanResult.Success>(result)
+    }
+
+    @Test
+    fun documentTypeIsDerivedFromEvidence() {
+        val amarilla = assertIs<ScanResult.Success>(ColombianIdParser.parsePdf417(validPdf417.raw)).data
+        assertEquals(DocumentType.CEDULA_AMARILLA, amarilla.documentType)
+
+        val digital = assertIs<ScanResult.Success>(ColombianIdParser.parseMrz(MrzFixtures.validCard)).data
+        assertEquals(DocumentType.CEDULA_DIGITAL, digital.documentType)
     }
 
     @Test

@@ -30,4 +30,11 @@ data class IdCardData(
     /** MRZ only, null for PDF417. */
     val expirationDate: LocalDate?,
     val source: DocumentSource
-)
+) {
+    /** The resolved document type, derived from the reading evidence. */
+    val documentType: DocumentType
+        get() = when (source) {
+            DocumentSource.PDF417 -> DocumentType.CEDULA_AMARILLA
+            DocumentSource.MRZ -> DocumentType.CEDULA_DIGITAL
+        }
+}
