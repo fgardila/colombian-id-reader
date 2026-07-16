@@ -6,4 +6,4 @@ package dev.code93.colombian_id_reader.model
  * evidence — a PDF417 that decodes, an MRZ that validates — never from
  * an image classifier (D10).
  */
-enum class DocumentType { CEDULA_AMARILLA, CEDULA_DIGITAL }
+enum class DocumentType { CEDULA_AMARILLA, CEDULA_DIGITAL, PASSPORT }
