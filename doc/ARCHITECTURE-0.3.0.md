@@ -1,6 +1,9 @@
 # colombian-id-reader 0.3.0 — Passport Support (MRZ TD3)
 
-> **Status:** in design. Builds on 0.1.0 (shipped) and 0.2.0 (in development).
+> **Status:** implemented (Phases 1-3); Id3 field evaluation (Phase 4) pending.
+> Version label decision (§10): shipped as **0.3.0** — the breaking model
+> change is communicated in the README migration guide. iOS mode selection
+> shipped as `IdScannerOptions.mode` (property, not a factory overload).
 > **Prior art:** `ARCHITECTURE.md` (0.1.0 — module layout, parsers, privacy,
 > packaging) and `ARCHITECTURE-0.2.0.md` (capture gate, `DocumentFormat`,
 > `ScanMode`, evidence-based routing). This document covers **only what 0.3.0
@@ -232,10 +235,10 @@ Two additions specific to passports:
 
 | # | Phase | Output |
 |---|-------|--------|
-| 1 | **TD3 parser** (`commonMain`) | `Td3MrzParser` with ICAO check digits, non-ISO country codes, truncation flag. Pure, JVM-testable, no device needed. |
-| 2 | **Data model migration** | `ScannedDocument` sealed hierarchy; `ColombianId` mapped from existing parsers; Swift-friendly discriminator; migration guide for 0.2.0 clients. |
-| 3 | **`ScanMode.Passport` + gate** | Accept `Id3`; thread the mode through the pipeline; data-page UX guidance. |
-| 4 | **Field evaluation for `Id3`** | FN/FP rates under curvature and glare → threshold tuning → custom-model go/no-go (D12). |
+| 1 | **TD3 parser** (`commonMain`) ✅ | `Td3MrzParser` pinned byte-for-byte to the public ICAO 9303 specimen; composite excludes nationality/sex; optional-data cd may be `'<'`; OCR repair never touches the alphanumeric passport/personal numbers. |
+| 2 | **Data model migration** ✅ | `ScannedDocument` sealed hierarchy shipped; `DocumentSource` removed (redundant with `documentType`); facade keeps its name and gains explicit `parseMrzTd3`. |
+| 3 | **`ScanMode.Passport` + gate** ✅ | `ScanMode.acceptedFormats` (ColombianId→Id1, Passport→Id3); Passport mode has no PDF417 leg; data-page instruction ES/EN. |
+| 4 | **Field evaluation for `Id3`** | FN/FP rates under curvature and glare → threshold tuning → custom-model go/no-go (D12). Tooling (GateStats + diagnostics toggles) already shipped in 0.2.0. |
 
 > Sequence rationale: Phase 1 is pure and carries no platform risk — same reason
 > 0.1.0 built parsers before scanners. Phase 2 is the largest and riskiest piece
