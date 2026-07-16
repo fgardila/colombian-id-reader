@@ -38,7 +38,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.scanner.IdFrameAnalyzer
@@ -54,7 +54,7 @@ import java.util.concurrent.Executors
  * for clients with their own guidance UI.
  *
  * Requests the camera permission itself and delivers exactly one
- * [IdCardData] via [onResult]. The library never persists, transmits or
+ * [ScannedDocument] via [onResult]. The library never persists, transmits or
  * logs what the camera sees (§7). [detectorFilter] is a development
  * aid — leave it at [DetectorFilter.ALL] in production.
  */
@@ -63,7 +63,7 @@ fun IdScannerScreen(
     mode: ScanMode = ScanMode.ColombianId,
     detectorFilter: DetectorFilter = DetectorFilter.ALL,
     onGateHint: ((GateHint) -> Unit)? = null,
-    onResult: (IdCardData) -> Unit,
+    onResult: (ScannedDocument) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,7 +83,7 @@ fun IdScannerScreen(
     BackHandler(onBack = onCancel)
 
     if (hasPermission) {
-        ScannerContent(detectorFilter, onGateHint, onResult, onCancel)
+        ScannerContent(mode, detectorFilter, onGateHint, onResult, onCancel)
     } else {
         PermissionRationale(
             onRequest = { launcher.launch(Manifest.permission.CAMERA) },
@@ -94,9 +94,10 @@ fun IdScannerScreen(
 
 @Composable
 private fun ScannerContent(
+    mode: ScanMode,
     detectorFilter: DetectorFilter,
     onGateHint: ((GateHint) -> Unit)?,
-    onResult: (IdCardData) -> Unit,
+    onResult: (ScannedDocument) -> Unit,
     onCancel: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -105,8 +106,9 @@ private fun ScannerContent(
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var hint by remember { mutableStateOf<GateHint?>(null) }
 
-    val analyzer = remember(detectorFilter) {
+    val analyzer = remember(mode, detectorFilter) {
         IdFrameAnalyzer(
+            mode = mode,
             filter = detectorFilter,
             detectors = detectors,
             onSuccess = { data ->
@@ -137,7 +139,7 @@ private fun ScannerContent(
             }
         )
         ScannerOverlay(
-            instruction = stringResource(hint.instructionRes()),
+            instruction = stringResource(hint.instructionRes(mode)),
             cancelLabel = stringResource(R.string.colombian_id_scanner_cancel),
             highlight = hint == GateHint.PASS,
             onCancel = onCancel
@@ -154,8 +156,12 @@ private fun ScannerContent(
     }
 }
 
-private fun GateHint?.instructionRes(): Int = when (this) {
-    null -> R.string.colombian_id_scanner_instruction
+private fun GateHint?.instructionRes(mode: ScanMode): Int = when (this) {
+    null -> if (mode == ScanMode.Passport) {
+        R.string.colombian_id_scanner_instruction_passport
+    } else {
+        R.string.colombian_id_scanner_instruction
+    }
     GateHint.NO_DOCUMENT -> R.string.colombian_id_scanner_hint_no_document
     GateHint.TOO_SMALL -> R.string.colombian_id_scanner_hint_too_small
     GateHint.SKEWED -> R.string.colombian_id_scanner_hint_skewed

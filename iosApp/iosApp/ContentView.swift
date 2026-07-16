@@ -3,9 +3,10 @@ import SharedLogic
 
 struct ContentView: View {
     @State private var isScanning = false
+    @State private var selectedMode: ScanMode = ScanModeColombianId.shared
     @State private var selectedFilter: DetectorFilter = .all
     @State private var diagnostics = false
-    @State private var result: IdCardData?
+    @State private var result: ScannedDocument?
 
     var body: some View {
         if let data = result {
@@ -27,6 +28,14 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
 
             Button("Escanear cédula") {
+                selectedMode = ScanModeColombianId.shared
+                selectedFilter = .all
+                isScanning = true
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button("Escanear pasaporte") {
+                selectedMode = ScanModePassport.shared
                 selectedFilter = .all
                 isScanning = true
             }
@@ -34,10 +43,12 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button("Solo PDF417") {
+                    selectedMode = ScanModeColombianId.shared
                     selectedFilter = .pdf417Only
                     isScanning = true
                 }
                 Button("Solo MRZ") {
+                    selectedMode = ScanModeColombianId.shared
                     selectedFilter = .mrzOnly
                     isScanning = true
                 }
@@ -53,6 +64,7 @@ struct ContentView: View {
         .padding(32)
         .fullScreenCover(isPresented: $isScanning) {
             ScannerView(
+                mode: selectedMode,
                 detectorFilter: selectedFilter,
                 onResult: { data in
                     result = data
@@ -66,7 +78,7 @@ struct ContentView: View {
 }
 
 struct ResultView: View {
-    let data: IdCardData
+    let data: ScannedDocument
     let onScanAgain: () -> Void
 
     var body: some View {
@@ -76,14 +88,25 @@ struct ResultView: View {
                     .font(.title2.bold())
                     .padding(.bottom, 16)
 
-                field("Número de documento", data.documentNumber)
+                field("Tipo de documento", data.documentType.name)
                 field("Nombres", data.givenNames)
                 field("Apellidos", data.surnames)
                 field("Fecha de nacimiento", data.birthDate?.description())
                 field("Sexo", data.sex.name)
-                field("Tipo de sangre (RH)", data.bloodType)
-                field("Vencimiento", data.expirationDate?.description())
-                field("Fuente", data.source.name)
+                // Sealed hierarchies export without exhaustive switch:
+                // branch on the documentType discriminator, then cast.
+                if let cedula = data as? ScannedDocumentColombianId {
+                    field("NUIP", cedula.nuip)
+                    field("Tipo de sangre (RH)", cedula.bloodType)
+                    field("Vencimiento", cedula.expirationDate?.description())
+                } else if let passport = data as? ScannedDocumentPassport {
+                    field("Número de pasaporte", passport.passportNumber)
+                    field("Estado emisor", passport.issuingState)
+                    field("Nacionalidad", passport.nationality)
+                    field("Vencimiento", passport.expirationDate.description())
+                    field("Número personal", passport.personalNumber)
+                    field("Nombre posiblemente truncado", passport.namesTruncated ? "Sí" : "No")
+                }
 
                 Button("Escanear otra") { onScanAgain() }
                     .buttonStyle(.borderedProminent)

@@ -30,22 +30,39 @@ object, regardless of which document type was read.
 ## Data model
 
 ```kotlin
-data class IdCardData(
-    val documentNumber: String,      // NUIP, normalized
-    val givenNames: String,          // "FABIAN GUILLERMO", "MARIA DEL MAR"
-    val surnames: String,            // "ARDILA CASTRO", "DE LA OSSA TOVAR"
-    val birthDate: LocalDate?,
-    val sex: Sex,                    // MALE, FEMALE, UNSPECIFIED
-    val bloodType: String?,          // PDF417 only — null for MRZ
-    val expirationDate: LocalDate?,  // MRZ only — null for PDF417
-    val source: DocumentSource       // PDF417 or MRZ
-)
+sealed interface ScannedDocument {
+    val documentType: DocumentType   // CEDULA_AMARILLA | CEDULA_DIGITAL | PASSPORT
+    val givenNames: String           // merged: "FABIAN GUILLERMO"
+    val surnames: String             // merged: "DE LA OSSA TOVAR"
+    val birthDate: LocalDate?
+    val sex: Sex                     // MALE, FEMALE, UNSPECIFIED
+
+    data class ColombianId(          // cédula amarilla or digital
+        val nuip: String,            // normalized, no leading zeros
+        val bloodType: String?,      // amarilla (PDF417) only
+        val expirationDate: LocalDate?, // digital (MRZ) only
+        /* + common fields */
+    ) : ScannedDocument
+
+    data class Passport(             // MRZ TD3, any issuing state
+        val passportNumber: String,  // alphanumeric, verbatim
+        val issuingState: String,    // ICAO code, may be non-ISO ("D", "XXA")
+        val nationality: String,
+        val expirationDate: LocalDate,
+        val personalNumber: String?, // usually empty
+        val namesTruncated: Boolean, // ICAO 39-char limit possibly hit
+        /* + common fields */
+    ) : ScannedDocument
+}
 ```
 
-Names are two merged strings on purpose: neither encoding can reliably
-distinguish a compound surname ("DE LA OSSA") from two separate surnames.
-Nullability is honest: fields a given source cannot provide are `null` (the
-digital card's MRZ does **not** carry blood type).
+Each subtype exposes only the fields its document actually carries; names
+are merged strings (neither encoding can reliably split compound names).
+
+> **Reading is not verifying.** A successful passport (or cédula) scan
+> returns what is printed. It does not establish that the document is
+> genuine or that the bearer is the holder — do not treat a scan as
+> identity verification.
 
 ## Module layout
 
@@ -133,6 +150,18 @@ screens show framing guidance ("get closer", "hold steady", …) and clients
 with their own UI receive the same `GateHint` conditions via callback.
 Both entry points return a single unified `IdCardData` and never persist,
 transmit, or log what the camera sees.
+
+### Migrating 0.2.0 → 0.3.0
+
+- **`IdCardData` is now `ScannedDocument`** (sealed): cédulas arrive as
+  `ScannedDocument.ColombianId` (`documentNumber` renamed to `nuip`),
+  passports as `ScannedDocument.Passport`. Retype your `onResult`
+  callbacks and branch on `documentType` (in Swift: cast after switching
+  on `documentType` — sealed hierarchies have no exhaustive `switch`).
+- `DocumentSource` is gone — use `documentType`.
+- `ScanMode.Passport` is new; on iOS set `options.mode =
+  ScanModePassport.shared`. `ColombianIdParser.parseMrz` stays TD1-only;
+  `parseMrzTd3` is the passport entry point.
 
 ### Migrating 0.1.x → 0.2.0
 

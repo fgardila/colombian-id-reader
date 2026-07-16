@@ -5,7 +5,7 @@ import dev.code93.colombian_id_reader.model.ScanResult
 
 /**
  * PDF417 parser for the cédula amarilla: normalize → locate fields by
- * pattern → map to IdCardData (ARCHITECTURE.md §6.2).
+ * pattern → map to ScannedDocument (ARCHITECTURE.md §6.2).
  */
 internal object Pdf417Parser {
 

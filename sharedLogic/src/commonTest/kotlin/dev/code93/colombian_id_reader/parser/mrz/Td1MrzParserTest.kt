@@ -3,9 +3,10 @@ package dev.code93.colombian_id_reader.parser.mrz
 import dev.code93.colombian_id_reader.fixtures.MrzFixtureBuilder
 import dev.code93.colombian_id_reader.fixtures.MrzFixtures
 import dev.code93.colombian_id_reader.fixtures.MrzFixtures.CURRENT_YEAR
-import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -18,7 +19,7 @@ class Td1MrzParserTest {
     private fun parse(lines: List<String>) = Td1MrzParser.parse(lines, CURRENT_YEAR)
 
     private fun successData(lines: List<String>) =
-        assertIs<ScanResult.Success>(parse(lines)).data
+        assertIs<ScannedDocument.ColombianId>(assertIs<ScanResult.Success>(parse(lines)).data)
 
     private fun errorReason(lines: List<String>) =
         assertIs<ScanResult.Error>(parse(lines)).reason
@@ -27,13 +28,13 @@ class Td1MrzParserTest {
     fun parsesCanonicalDigitalCedula() {
         val data = successData(MrzFixtures.validCard)
 
-        assertEquals("1032456789", data.documentNumber)
+        assertEquals("1032456789", data.nuip)
         assertEquals("MARIA DANIELA", data.givenNames)
         assertEquals("MARTINEZ GARCIA", data.surnames)
         assertEquals(LocalDate(1988, 8, 21), data.birthDate)
         assertEquals(Sex.FEMALE, data.sex)
         assertEquals(LocalDate(2031, 1, 30), data.expirationDate)
-        assertEquals(DocumentSource.MRZ, data.source)
+        assertEquals(DocumentType.CEDULA_DIGITAL, data.documentType)
         // Availability matrix (§4): the MRZ never carries blood type.
         assertNull(data.bloodType)
     }
@@ -50,7 +51,7 @@ class Td1MrzParserTest {
         assertEquals("CAMILO", data.givenNames)
         assertEquals("SALAZAR", data.surnames)
         assertEquals(Sex.MALE, data.sex)
-        assertEquals("56789123", data.documentNumber) // leading zeros stripped
+        assertEquals("56789123", data.nuip) // leading zeros stripped
     }
 
     @Test
@@ -86,7 +87,7 @@ class Td1MrzParserTest {
     fun normalizesOcrNoise() {
         // lowercase and stray spaces, as OCR engines often deliver
         val noisy = MrzFixtures.validCard.map { "  ${it.lowercase().chunked(10).joinToString(" ")} " }
-        assertEquals("1032456789", successData(noisy).documentNumber)
+        assertEquals("1032456789", successData(noisy).nuip)
     }
 
     @Test
@@ -155,7 +156,7 @@ class Td1MrzParserTest {
         // pass — and still reject any genuinely wrong substitution.
         val card = MrzFixtures.validCard.toMutableList()
         card[1] = card[1].replaceRange(2, 3, "O") // birth 880821 -> 88O821
-        assertEquals("1032456789", successData(card).documentNumber)
+        assertEquals("1032456789", successData(card).nuip)
 
         val corrupted = MrzFixtureBuilder.corrupt(MrzFixtures.validCard, 1, 0)
         assertEquals(ErrorReason.CHECK_DIGIT_FAILED, errorReason(corrupted))
@@ -171,7 +172,7 @@ class Td1MrzParserTest {
             surnames = listOf("MARTINEZ"), givenNames = listOf("MARIA"),
             omitSerialCheckDigit = true
         )
-        assertEquals("1032456789", successData(card).documentNumber)
+        assertEquals("1032456789", successData(card).nuip)
     }
 
     @Test
@@ -192,7 +193,7 @@ class Td1MrzParserTest {
         val corrected = specimen.toMutableList()
         corrected[1] = corrected[1].dropLast(1) + "8"
         val data = successData(corrected)
-        assertEquals("1234567890", data.documentNumber)
+        assertEquals("1234567890", data.nuip)
         assertEquals("GERONIMO", data.givenNames)
         assertEquals("VELEZ RUIZ", data.surnames)
     }
@@ -211,7 +212,7 @@ class Td1MrzParserTest {
         val data = successData(MrzFixtures.walterosCard)
         assertEquals("WALTEROS", data.surnames)
         assertEquals("LAURA", data.givenNames)
-        assertEquals("1052478963", data.documentNumber)
+        assertEquals("1052478963", data.nuip)
     }
 
     @Test

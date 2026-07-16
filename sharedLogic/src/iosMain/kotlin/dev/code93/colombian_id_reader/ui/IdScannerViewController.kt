@@ -4,7 +4,8 @@ package dev.code93.colombian_id_reader.ui
 
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scanner.IdCaptureSession
 import dev.code93.colombian_id_reader.scanner.IdFrameProcessor
 import dev.code93.colombian_id_reader.scanner.VisionDetectors
@@ -42,7 +43,7 @@ import platform.darwin.dispatch_get_main_queue
  *
  * Handles the camera permission flow itself (once denied, iOS never
  * re-prompts, so the grant button deep-links to Settings). Delivers
- * exactly one [IdCardData] via [onResult] on the main thread. The
+ * exactly one [ScannedDocument] via [onResult] on the main thread. The
  * library never persists, transmits or logs what the camera sees (§7).
  *
  * UI strings and behavior come from [IdScannerOptions] (a static
@@ -54,7 +55,7 @@ import platform.darwin.dispatch_get_main_queue
  */
 internal class IdScannerViewController(
     private val options: IdScannerOptions,
-    private val onResult: (IdCardData) -> Unit,
+    private val onResult: (ScannedDocument) -> Unit,
     private val onCancel: () -> Unit
 ) : UIViewController(nibName = null, bundle = null) {
 
@@ -129,6 +130,7 @@ internal class IdScannerViewController(
     private fun showScanner() {
         val visionDetectors = VisionDetectors()
         val processor = IdFrameProcessor(
+            mode = options.mode,
             filter = options.detectorFilter,
             detectors = visionDetectors,
             onSuccess = { data ->
@@ -145,14 +147,20 @@ internal class IdScannerViewController(
         )
         val session = IdCaptureSession(
             processor,
-            enablePdf417Metadata = options.detectorFilter != DetectorFilter.MRZ_ONLY
+            enablePdf417Metadata = options.mode == ScanMode.ColombianId &&
+                options.detectorFilter != DetectorFilter.MRZ_ONLY
         )
 
         val layer = AVCaptureVideoPreviewLayer(session = session.session)
         layer.videoGravity = AVLayerVideoGravityResizeAspectFill
         view.layer.insertSublayer(layer, atIndex = 0u)
 
-        val overlayView = ScannerOverlayView(texts.instruction)
+        val initialInstruction = if (options.mode == ScanMode.Passport) {
+            texts.instructionPassport
+        } else {
+            texts.instruction
+        }
+        val overlayView = ScannerOverlayView(initialInstruction)
         view.insertSubview(overlayView, belowSubview = cancelButton)
 
         detectors = visionDetectors

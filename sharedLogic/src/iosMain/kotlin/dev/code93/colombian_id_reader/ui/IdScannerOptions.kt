@@ -2,6 +2,7 @@ package dev.code93.colombian_id_reader.ui
 
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanMode
 
 /**
  * Configuration for the scanning screen. A mutable options object with
@@ -19,6 +20,9 @@ import dev.code93.colombian_id_reader.model.GateHint
  * overload arrives with Passport support (0.3.0) without breaking this.
  */
 public class IdScannerOptions {
+    /** Declared document category; Swift: `options.mode = ScanModePassport.shared`. */
+    public var mode: ScanMode = ScanMode.ColombianId
+
     /** Development aid — leave at ALL in production. */
     public var detectorFilter: DetectorFilter = DetectorFilter.ALL
 
@@ -32,6 +36,7 @@ public class IdScannerOptions {
 /** UI strings for the bundled scanning screen, Spanish by default. */
 public class IdScannerTexts {
     public var instruction: String = "Alinee el documento dentro del marco"
+    public var instructionPassport: String = "Presente la página de datos del pasaporte"
     public var cancel: String = "Cancelar"
     public var permissionRationale: String =
         "Para escanear el documento se necesita acceso a la cámara. La imagen se " +

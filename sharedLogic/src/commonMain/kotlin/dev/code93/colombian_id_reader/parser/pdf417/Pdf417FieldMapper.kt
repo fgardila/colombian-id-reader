@@ -1,14 +1,14 @@
 package dev.code93.colombian_id_reader.parser.pdf417
 
-import dev.code93.colombian_id_reader.model.DocumentSource
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.DocumentType
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
 import dev.code93.colombian_id_reader.parser.pdf417.Pdf417FieldLocator.LocatedFields
 
 internal object Pdf417FieldMapper {
 
-    fun map(fields: LocatedFields): IdCardData {
+    fun map(fields: LocatedFields): ScannedDocument.ColombianId {
         val nameFields = fields.nameFields
         // Layout between the anchors: [second surname?, given name(s)...].
         // 1 field: given names only; 2: second surname + given names;
@@ -24,17 +24,17 @@ internal object Pdf417FieldMapper {
             nameFields[0]
         }
 
-        return IdCardData(
-            documentNumber = fields.cedula.trimStart('0'),
+        return ScannedDocument.ColombianId(
+            documentType = DocumentType.CEDULA_AMARILLA,
             givenNames = givenNames,
             surnames = surnames,
             // The barcode has no check digits; a corrupt date is not proof
             // of a bad read, so it degrades to null instead of failing.
             birthDate = DateParsing.parseYyyyMmDd(fields.birthDateRaw),
             sex = if (fields.sex == 'M') Sex.MALE else Sex.FEMALE,
+            nuip = fields.cedula.trimStart('0'),
             bloodType = fields.bloodType,
-            expirationDate = null,
-            source = DocumentSource.PDF417
+            expirationDate = null
         )
     }
 }

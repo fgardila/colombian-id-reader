@@ -1,9 +1,9 @@
 package dev.code93.colombian_id_reader.parser.mrz
 
-import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
-import dev.code93.colombian_id_reader.model.IdCardData
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
 import dev.code93.colombian_id_reader.scan.ScanDebug
@@ -23,7 +23,7 @@ import dev.code93.colombian_id_reader.scan.ScanDebug
  *
  * The real cédula number (NUIP) is the optional-data field of line 2 —
  * not the document serial on line 1. The MRZ carries no blood type, so
- * [IdCardData.bloodType] is always null for this source.
+ * [ScannedDocument.ColombianId.bloodType] is always null for this source.
  */
 internal object Td1MrzParser {
 
@@ -118,15 +118,15 @@ internal object Td1MrzParser {
         val expirationDate = DateParsing.parseExpiryYyMmDd(expiry)
             ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
 
-        val names = parseNameLine(line3)
+        val names = MrzNames.parse(line3)
             ?: run {
                 ScanDebug.log { "MRZ parse: name line has no '<<' separator or empty groups: $line3" }
                 return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
             }
 
         return ScanResult.Success(
-            IdCardData(
-                documentNumber = documentNumber,
+            ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_DIGITAL,
                 givenNames = names.givenNames,
                 surnames = names.surnames,
                 birthDate = birthDate,
@@ -135,36 +135,11 @@ internal object Td1MrzParser {
                     'F' -> Sex.FEMALE
                     else -> Sex.UNSPECIFIED
                 },
+                nuip = documentNumber,
                 bloodType = null,
-                expirationDate = expirationDate,
-                source = DocumentSource.MRZ
+                expirationDate = expirationDate
             )
         )
     }
 
-    private class NameParts(
-        val surnames: String,
-        val givenNames: String
-    )
-
-    /**
-     * '<<' separates the surname group from the given-names group; a
-     * single '<' is BOTH the word separator inside a group and the
-     * space inside a compound name ("DE<LA<OSSA") — indistinguishable
-     * by design, which is why the groups are returned merged.
-     */
-    private fun parseNameLine(line3: String): NameParts? {
-        val content = line3.trimEnd('<')
-        val separator = content.indexOf("<<")
-        if (separator < 0) return null
-
-        val surnames = content.substring(0, separator).split('<').filter { it.isNotEmpty() }
-        val givenNames = content.substring(separator + 2).split('<').filter { it.isNotEmpty() }
-        if (surnames.isEmpty() || givenNames.isEmpty()) return null
-
-        return NameParts(
-            surnames = surnames.joinToString(" "),
-            givenNames = givenNames.joinToString(" ")
-        )
-    }
 }

@@ -27,14 +27,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.code93.colombian_id_reader.model.DetectorFilter
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
 private sealed interface DemoScreen {
     data object Home : DemoScreen
-    data class Scanning(val filter: DetectorFilter) : DemoScreen
-    data class Result(val data: IdCardData) : DemoScreen
+    data class Scanning(val mode: ScanMode, val filter: DetectorFilter) : DemoScreen
+    data class Result(val data: ScannedDocument) : DemoScreen
 }
 
 @Composable
@@ -43,8 +44,9 @@ fun DemoApp() {
         var screen by remember { mutableStateOf<DemoScreen>(DemoScreen.Home) }
 
         when (val current = screen) {
-            is DemoScreen.Home -> HomeScreen(onScan = { screen = DemoScreen.Scanning(it) })
+            is DemoScreen.Home -> HomeScreen(onScan = { mode, filter -> screen = DemoScreen.Scanning(mode, filter) })
             is DemoScreen.Scanning -> IdScannerScreen(
+                mode = current.mode,
                 detectorFilter = current.filter,
                 onResult = { screen = DemoScreen.Result(it) },
                 onCancel = { screen = DemoScreen.Home }
@@ -58,7 +60,7 @@ fun DemoApp() {
 }
 
 @Composable
-private fun HomeScreen(onScan: (DetectorFilter) -> Unit) {
+private fun HomeScreen(onScan: (ScanMode, DetectorFilter) -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -67,13 +69,23 @@ private fun HomeScreen(onScan: (DetectorFilter) -> Unit) {
         Text("colombian-id-reader", style = MaterialTheme.typography.headlineSmall)
         Text("Demo", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(32.dp))
-        Button(onClick = { onScan(DetectorFilter.ALL) }, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = { onScan(ScanMode.ColombianId, DetectorFilter.ALL) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("Escanear cédula")
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { onScan(ScanMode.Passport, DetectorFilter.ALL) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Escanear pasaporte")
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onScan(DetectorFilter.PDF417_ONLY) }) { Text("Solo PDF417") }
-            OutlinedButton(onClick = { onScan(DetectorFilter.MRZ_ONLY) }) { Text("Solo MRZ") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.PDF417_ONLY) }) { Text("Solo PDF417") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.MRZ_ONLY) }) { Text("Solo MRZ") }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -105,7 +117,7 @@ private fun HomeScreen(onScan: (DetectorFilter) -> Unit) {
 }
 
 @Composable
-private fun ResultScreen(data: IdCardData, onScanAgain: () -> Unit) {
+private fun ResultScreen(data: ScannedDocument, onScanAgain: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -116,14 +128,26 @@ private fun ResultScreen(data: IdCardData, onScanAgain: () -> Unit) {
         Text("Documento leído", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
-        Field("Número de documento", data.documentNumber)
+        Field("Tipo de documento", data.documentType.name)
         Field("Nombres", data.givenNames)
         Field("Apellidos", data.surnames)
         Field("Fecha de nacimiento", data.birthDate?.toString())
         Field("Sexo", data.sex.name)
-        Field("Tipo de sangre (RH)", data.bloodType)
-        Field("Vencimiento", data.expirationDate?.toString())
-        Field("Fuente", data.source.name)
+        when (data) {
+            is ScannedDocument.ColombianId -> {
+                Field("NUIP", data.nuip)
+                Field("Tipo de sangre (RH)", data.bloodType)
+                Field("Vencimiento", data.expirationDate?.toString())
+            }
+            is ScannedDocument.Passport -> {
+                Field("Número de pasaporte", data.passportNumber)
+                Field("Estado emisor", data.issuingState)
+                Field("Nacionalidad", data.nationality)
+                Field("Vencimiento", data.expirationDate.toString())
+                Field("Número personal", data.personalNumber)
+                Field("Nombre posiblemente truncado", if (data.namesTruncated) "Sí" else "No")
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
         Button(onClick = onScanAgain, modifier = Modifier.fillMaxWidth()) {
