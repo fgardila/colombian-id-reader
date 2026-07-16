@@ -1,6 +1,6 @@
 package dev.code93.colombian_id_reader.ui
 
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import platform.UIKit.UIViewController
 
 /**
@@ -24,14 +24,14 @@ public object IdScanner {
 
     /** Scanner with default options (Spanish UI strings, all detectors). */
     public fun viewController(
-        onResult: (IdCardData) -> Unit,
+        onResult: (ScannedDocument) -> Unit,
         onCancel: () -> Unit
     ): UIViewController = viewController(IdScannerOptions(), onResult, onCancel)
 
     /** Scanner with custom [IdScannerOptions]. */
     public fun viewController(
         options: IdScannerOptions,
-        onResult: (IdCardData) -> Unit,
+        onResult: (ScannedDocument) -> Unit,
         onCancel: () -> Unit
     ): UIViewController = IdScannerViewController(options, onResult, onCancel)
 }

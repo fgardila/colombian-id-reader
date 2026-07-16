@@ -23,10 +23,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 
 /**
  * Parser demo harness (no camera): paste a raw PDF417 payload or the
- * three MRZ lines and inspect the resulting IdCardData. Useful on
+ * three MRZ lines and inspect the resulting ScannedDocument. Useful on
  * desktop for exercising the shared parsing core with real strings.
  */
 @Composable
@@ -47,7 +48,7 @@ fun App() {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                label = { Text("Pegue el PDF417 crudo o las 3 líneas MRZ") },
+                label = { Text("Pegue el PDF417 crudo, las 3 líneas MRZ (cédula) o las 2 líneas TD3 (pasaporte)") },
                 minLines = 5,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -61,11 +62,10 @@ fun App() {
 
 private fun parse(input: String): ScanResult {
     val lines = input.lines().map { it.trim().replace(" ", "") }.filter { it.isNotEmpty() }
-    val looksLikeMrz = lines.size == 3 && lines.all { it.length == 30 }
-    return if (looksLikeMrz) {
-        ColombianIdParser.parseMrz(lines)
-    } else {
-        ColombianIdParser.parsePdf417(input)
+    return when {
+        lines.size == 3 && lines.all { it.length == 30 } -> ColombianIdParser.parseMrz(lines)
+        lines.size == 2 && lines.all { it.length == 44 } -> ColombianIdParser.parseMrzTd3(lines)
+        else -> ColombianIdParser.parsePdf417(input)
     }
 }
 
@@ -79,14 +79,26 @@ private fun ResultView(result: ScanResult) {
         )
         is ScanResult.Success -> Column {
             val data = result.data
-            Field("Número de documento", data.documentNumber)
+            Field("Tipo de documento", data.documentType.name)
             Field("Nombres", data.givenNames)
             Field("Apellidos", data.surnames)
             Field("Fecha de nacimiento", data.birthDate?.toString())
             Field("Sexo", data.sex.name)
-            Field("Tipo de sangre (RH)", data.bloodType)
-            Field("Vencimiento", data.expirationDate?.toString())
-            Field("Fuente", data.source.name)
+            when (data) {
+                is ScannedDocument.ColombianId -> {
+                    Field("NUIP", data.nuip)
+                    Field("Tipo de sangre (RH)", data.bloodType)
+                    Field("Vencimiento", data.expirationDate?.toString())
+                }
+                is ScannedDocument.Passport -> {
+                    Field("Número de pasaporte", data.passportNumber)
+                    Field("Estado emisor", data.issuingState)
+                    Field("Nacionalidad", data.nationality)
+                    Field("Vencimiento", data.expirationDate.toString())
+                    Field("Número personal", data.personalNumber)
+                    Field("Nombre posiblemente truncado", if (data.namesTruncated) "Sí" else "No")
+                }
+            }
         }
     }
 }

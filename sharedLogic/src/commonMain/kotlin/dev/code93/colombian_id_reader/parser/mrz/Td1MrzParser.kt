@@ -1,9 +1,9 @@
 package dev.code93.colombian_id_reader.parser.mrz
 
-import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
-import dev.code93.colombian_id_reader.model.IdCardData
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
 import dev.code93.colombian_id_reader.scan.ScanDebug
@@ -23,7 +23,7 @@ import dev.code93.colombian_id_reader.scan.ScanDebug
  *
  * The real cédula number (NUIP) is the optional-data field of line 2 —
  * not the document serial on line 1. The MRZ carries no blood type, so
- * [IdCardData.bloodType] is always null for this source.
+ * [ScannedDocument.ColombianId.bloodType] is always null for this source.
  */
 internal object Td1MrzParser {
 
@@ -125,8 +125,8 @@ internal object Td1MrzParser {
             }
 
         return ScanResult.Success(
-            IdCardData(
-                documentNumber = documentNumber,
+            ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_DIGITAL,
                 givenNames = names.givenNames,
                 surnames = names.surnames,
                 birthDate = birthDate,
@@ -135,9 +135,9 @@ internal object Td1MrzParser {
                     'F' -> Sex.FEMALE
                     else -> Sex.UNSPECIFIED
                 },
+                nuip = documentNumber,
                 bloodType = null,
-                expirationDate = expirationDate,
-                source = DocumentSource.MRZ
+                expirationDate = expirationDate
             )
         )
     }

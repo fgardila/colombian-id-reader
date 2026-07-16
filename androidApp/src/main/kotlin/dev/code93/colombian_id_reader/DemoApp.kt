@@ -27,14 +27,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.code93.colombian_id_reader.model.DetectorFilter
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
 private sealed interface DemoScreen {
     data object Home : DemoScreen
     data class Scanning(val filter: DetectorFilter) : DemoScreen
-    data class Result(val data: IdCardData) : DemoScreen
+    data class Result(val data: ScannedDocument) : DemoScreen
 }
 
 @Composable
@@ -105,7 +105,7 @@ private fun HomeScreen(onScan: (DetectorFilter) -> Unit) {
 }
 
 @Composable
-private fun ResultScreen(data: IdCardData, onScanAgain: () -> Unit) {
+private fun ResultScreen(data: ScannedDocument, onScanAgain: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -116,14 +116,26 @@ private fun ResultScreen(data: IdCardData, onScanAgain: () -> Unit) {
         Text("Documento leído", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
-        Field("Número de documento", data.documentNumber)
+        Field("Tipo de documento", data.documentType.name)
         Field("Nombres", data.givenNames)
         Field("Apellidos", data.surnames)
         Field("Fecha de nacimiento", data.birthDate?.toString())
         Field("Sexo", data.sex.name)
-        Field("Tipo de sangre (RH)", data.bloodType)
-        Field("Vencimiento", data.expirationDate?.toString())
-        Field("Fuente", data.source.name)
+        when (data) {
+            is ScannedDocument.ColombianId -> {
+                Field("NUIP", data.nuip)
+                Field("Tipo de sangre (RH)", data.bloodType)
+                Field("Vencimiento", data.expirationDate?.toString())
+            }
+            is ScannedDocument.Passport -> {
+                Field("Número de pasaporte", data.passportNumber)
+                Field("Estado emisor", data.issuingState)
+                Field("Nacionalidad", data.nationality)
+                Field("Vencimiento", data.expirationDate.toString())
+                Field("Número personal", data.personalNumber)
+                Field("Nombre posiblemente truncado", if (data.namesTruncated) "Sí" else "No")
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
         Button(onClick = onScanAgain, modifier = Modifier.fillMaxWidth()) {

@@ -5,6 +5,8 @@ import dev.code93.colombian_id_reader.fixtures.Td3FixtureBuilder
 import dev.code93.colombian_id_reader.fixtures.Td3Fixtures
 import dev.code93.colombian_id_reader.fixtures.Td3Fixtures.CURRENT_YEAR
 import dev.code93.colombian_id_reader.model.ErrorReason
+import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -19,10 +21,10 @@ class Td3MrzParserTest {
     private fun parse(lines: List<String>) = Td3MrzParser.parse(lines, CURRENT_YEAR)
 
     private fun successData(lines: List<String>) =
-        assertIs<Td3Outcome.Success>(parse(lines)).passport
+        assertIs<ScannedDocument.Passport>(assertIs<ScanResult.Success>(parse(lines)).data)
 
     private fun errorReason(lines: List<String>) =
-        assertIs<Td3Outcome.Error>(parse(lines)).reason
+        assertIs<ScanResult.Error>(parse(lines)).reason
 
     @Test
     fun builderReproducesTheIcaoSpecimen() {

@@ -1,9 +1,9 @@
 package dev.code93.colombian_id_reader.fixtures
 
 import dev.code93.colombian_id_reader.legacy.LegacyPdf417Oracle.LegacyInfo
-import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import kotlinx.datetime.LocalDate
 
@@ -39,7 +39,7 @@ internal data class Pdf417Fixture(
     val name: String,
     val raw: String,
     val legacy: LegacyInfo?,
-    val expected: IdCardData?,
+    val expected: ScannedDocument.ColombianId?,
     val expectedError: ErrorReason? = null
 )
 
@@ -72,13 +72,13 @@ internal object Pdf417Fixtures {
                 cedula = "0001234567", rh = "O+",
                 fechaNacimiento = "19880821", sexo = "0M198808210060O+"
             ),
-            expected = IdCardData(
-                documentNumber = "1234567",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1234567",
                 givenNames = "JUAN CARLOS",
                 surnames = "GARCIA RODRIGUEZ",
                 birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -94,13 +94,13 @@ internal object Pdf417Fixtures {
                 cedula = "0052147896", rh = "1A",
                 fechaNacimiento = "19910305", sexo = "0F199103050071A"
             ),
-            expected = IdCardData(
-                documentNumber = "52147896",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "52147896",
                 givenNames = "ANA",
                 surnames = "LOPEZ TORRES",
                 birthDate = LocalDate(1991, 3, 5), sex = Sex.FEMALE,
-                bloodType = "A-", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "A-", expirationDate = null
             )
         ),
 
@@ -116,13 +116,13 @@ internal object Pdf417Fixtures {
                 cedula = "0009876543", rh = "B+",
                 fechaNacimiento = "19751201", sexo = "0M197512010045AB+"
             ),
-            expected = IdCardData(
-                documentNumber = "9876543",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "9876543",
                 givenNames = "LUIS MIGUEL",
                 surnames = "MARTINEZ PEREZ",
                 birthDate = LocalDate(1975, 12, 1), sex = Sex.MALE,
-                bloodType = "AB+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "AB+", expirationDate = null
             )
         ),
 
@@ -138,13 +138,13 @@ internal object Pdf417Fixtures {
                 cedula = "1023456789", rh = "3B",
                 fechaNacimiento = "20020415", sexo = "0F200204150033B"
             ),
-            expected = IdCardData(
-                documentNumber = "1023456789",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1023456789",
                 givenNames = "MARIA JOSE",
                 surnames = "DIAZ CASTRO",
                 birthDate = LocalDate(2002, 4, 15), sex = Sex.FEMALE,
-                bloodType = "B-", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "B-", expirationDate = null
             )
         ),
 
@@ -160,13 +160,13 @@ internal object Pdf417Fixtures {
                 cedula = "0001234567", rh = "O+",
                 fechaNacimiento = "19881340", sexo = "0M198813400012O+"
             ),
-            expected = IdCardData(
-                documentNumber = "1234567",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1234567",
                 givenNames = "JUAN CARLOS",
                 surnames = "GARCIA RODRIGUEZ",
                 birthDate = null, sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -182,13 +182,13 @@ internal object Pdf417Fixtures {
                 cedula = "0034567891", rh = "O+",
                 fechaNacimiento = "19670724", sexo = "M"
             ),
-            expected = IdCardData(
-                documentNumber = "34567891",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "34567891",
                 givenNames = "PEDRO PABLO",
                 surnames = "HERNANDEZ GOMEZ",
                 birthDate = LocalDate(1967, 7, 24), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -204,13 +204,13 @@ internal object Pdf417Fixtures {
                 cedula = "0045678912", rh = "9O",
                 fechaNacimiento = "19850612", sexo = "F"
             ),
-            expected = IdCardData(
-                documentNumber = "45678912",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "45678912",
                 givenNames = "DIANA",
                 surnames = "RUIZ VARGAS",
                 birthDate = LocalDate(1985, 6, 12), sex = Sex.FEMALE,
-                bloodType = "O-", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O-", expirationDate = null
             )
         ),
 
@@ -226,13 +226,13 @@ internal object Pdf417Fixtures {
                 cedula = "0056789123", rh = "A+",
                 fechaNacimiento = "19990228", sexo = "M"
             ),
-            expected = IdCardData(
-                documentNumber = "56789123",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "56789123",
                 givenNames = "CAMILO",
                 surnames = "SALAZAR",
                 birthDate = LocalDate(1999, 2, 28), sex = Sex.MALE,
-                bloodType = "A+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "A+", expirationDate = null
             )
         ),
 
@@ -248,13 +248,13 @@ internal object Pdf417Fixtures {
                 cedula = "0067891234", rh = "B+",
                 fechaNacimiento = "19730317", sexo = "M"
             ),
-            expected = IdCardData(
-                documentNumber = "67891234",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "67891234",
                 givenNames = "ANDRES FELIPE",
                 surnames = "MORENO JIMENEZ",
                 birthDate = LocalDate(1973, 3, 17), sex = Sex.MALE,
-                bloodType = "B+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "B+", expirationDate = null
             )
         ),
 
@@ -265,13 +265,13 @@ internal object Pdf417Fixtures {
                 "0M199408190022O+"
             ),
             legacy = null,
-            expected = IdCardData(
-                documentNumber = "78912345",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "78912345",
                 givenNames = "MARIO NI O",
                 surnames = "ACOSTA BELLO",
                 birthDate = LocalDate(1994, 8, 19), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -286,13 +286,13 @@ internal object Pdf417Fixtures {
                 "0M198808210060O+"
             ),
             legacy = null,
-            expected = IdCardData(
-                documentNumber = "1034567890",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1034567890",
                 givenNames = "OSWALDO",
                 surnames = "DE LA OSSA TOVAR",
                 birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -308,13 +308,13 @@ internal object Pdf417Fixtures {
                 cedula = "0001234567", rh = "O+",
                 fechaNacimiento = "19880821", sexo = "0219880821M0045O+"
             ),
-            expected = IdCardData(
-                documentNumber = "1234567",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1234567",
                 givenNames = "JUAN CARLOS",
                 surnames = "GARCIA RODRIGUEZ",
                 birthDate = LocalDate(1988, 8, 21), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 
@@ -330,13 +330,13 @@ internal object Pdf417Fixtures {
                 cedula = "0052147896", rh = "A+",
                 fechaNacimiento = "19910305", sexo = "0119910305F0032A+"
             ),
-            expected = IdCardData(
-                documentNumber = "52147896",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "52147896",
                 givenNames = "ANA",
                 surnames = "LOPEZ TORRES",
                 birthDate = LocalDate(1991, 3, 5), sex = Sex.FEMALE,
-                bloodType = "A+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "A+", expirationDate = null
             )
         ),
 
@@ -362,13 +362,13 @@ internal object Pdf417Fixtures {
                 cedula = "1098741992", rh = "O+",
                 fechaNacimiento = "19930815", sexo = "M"
             ),
-            expected = IdCardData(
-                documentNumber = "1098741992",
+            expected = ScannedDocument.ColombianId(
+                documentType = DocumentType.CEDULA_AMARILLA,
+                nuip = "1098741992",
                 givenNames = "FABIAN GUILLERMO",
                 surnames = "ARDILA CASTRO",
                 birthDate = LocalDate(1993, 8, 15), sex = Sex.MALE,
-                bloodType = "O+", expirationDate = null,
-                source = DocumentSource.PDF417
+                bloodType = "O+", expirationDate = null
             )
         ),
 

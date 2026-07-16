@@ -1,17 +1,11 @@
 package dev.code93.colombian_id_reader.parser.mrz
 
-import dev.code93.colombian_id_reader.model.DocumentType
 import dev.code93.colombian_id_reader.model.ErrorReason
+import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
 import dev.code93.colombian_id_reader.scan.ScanDebug
-
-/** Temporary carrier until ScanResult pivots to ScannedDocument. */
-internal sealed interface Td3Outcome {
-    data class Success(val passport: ScannedDocument.Passport) : Td3Outcome
-    data class Error(val reason: ErrorReason) : Td3Outcome
-}
 
 /**
  * ICAO 9303 Part 4 TD3 parser (passports): two lines of 44 characters.
@@ -44,7 +38,7 @@ internal object Td3MrzParser {
         'O' to '0', 'Q' to '0', 'I' to '1', 'Z' to '2', 'S' to '5', 'G' to '6', 'B' to '8'
     )
 
-    fun parse(rawLines: List<String>, currentYear: Int): Td3Outcome {
+    fun parse(rawLines: List<String>, currentYear: Int): ScanResult {
         val lines = rawLines
             .flatMap { it.split('\n', '\r') }
             .map { it.trim().replace(" ", "").uppercase() }
@@ -54,13 +48,13 @@ internal object Td3MrzParser {
             ScanDebug.log {
                 "TD3 parse: wrong shape — ${lines.size} line(s), lengths ${lines.map { it.length }}"
             }
-            return Td3Outcome.Error(ErrorReason.INPUT_TOO_SHORT)
+            return ScanResult.Error(ErrorReason.INPUT_TOO_SHORT)
         }
 
         val line1 = lines[0]
         if (line1[0] != 'P') {
             ScanDebug.log { "TD3 parse: doc code '${line1.take(2)}' is not a passport" }
-            return Td3Outcome.Error(ErrorReason.UNKNOWN_FORMAT)
+            return ScanResult.Error(ErrorReason.UNKNOWN_FORMAT)
         }
         val line2 = repairDigitZones(lines[1])
 
@@ -90,40 +84,40 @@ internal object Td3MrzParser {
         }
         if (failedDigits.isNotEmpty()) {
             ScanDebug.log { "TD3 parse: check digit(s) failed — ${failedDigits.joinToString("; ")}" }
-            return Td3Outcome.Error(ErrorReason.CHECK_DIGIT_FAILED)
+            return ScanResult.Error(ErrorReason.CHECK_DIGIT_FAILED)
         }
 
         val passportNumber = numberField.trimEnd('<')
             .takeIf { it.isNotEmpty() }
             ?: run {
                 ScanDebug.log { "TD3 parse: empty passport number" }
-                return Td3Outcome.Error(ErrorReason.PATTERN_NOT_FOUND)
+                return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
             }
         val issuingState = line1.substring(2, 5).trimEnd('<')
             .takeIf { it.isNotEmpty() }
-            ?: return Td3Outcome.Error(ErrorReason.PATTERN_NOT_FOUND)
+            ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
 
         // ICAO allows an unknown birth date (filler characters).
         val birthDate = if (birth.contains('<')) {
             null
         } else {
             DateParsing.parseBirthYyMmDd(birth, currentYear)
-                ?: return Td3Outcome.Error(ErrorReason.PATTERN_NOT_FOUND)
+                ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
         }
         // Expiry is mandatory in TD3.
         val expirationDate = DateParsing.parseExpiryYyMmDd(expiry)
             ?: run {
                 ScanDebug.log { "TD3 parse: expiry '$expiry' is not a valid date" }
-                return Td3Outcome.Error(ErrorReason.PATTERN_NOT_FOUND)
+                return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
             }
 
         val names = MrzNames.parse(line1.substring(5))
             ?: run {
                 ScanDebug.log { "TD3 parse: name field has no '<<' separator or empty groups" }
-                return Td3Outcome.Error(ErrorReason.PATTERN_NOT_FOUND)
+                return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
             }
 
-        return Td3Outcome.Success(
+        return ScanResult.Success(
             ScannedDocument.Passport(
                 givenNames = names.givenNames,
                 surnames = names.surnames,

@@ -3,7 +3,7 @@ import SharedLogic
 
 struct ScannerView: UIViewControllerRepresentable {
     let detectorFilter: DetectorFilter
-    let onResult: (IdCardData) -> Void
+    let onResult: (ScannedDocument) -> Void
     let onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {

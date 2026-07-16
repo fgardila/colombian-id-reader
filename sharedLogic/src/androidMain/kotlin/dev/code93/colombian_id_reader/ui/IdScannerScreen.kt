@@ -38,7 +38,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.scanner.IdFrameAnalyzer
@@ -54,7 +54,7 @@ import java.util.concurrent.Executors
  * for clients with their own guidance UI.
  *
  * Requests the camera permission itself and delivers exactly one
- * [IdCardData] via [onResult]. The library never persists, transmits or
+ * [ScannedDocument] via [onResult]. The library never persists, transmits or
  * logs what the camera sees (§7). [detectorFilter] is a development
  * aid — leave it at [DetectorFilter.ALL] in production.
  */
@@ -63,7 +63,7 @@ fun IdScannerScreen(
     mode: ScanMode = ScanMode.ColombianId,
     detectorFilter: DetectorFilter = DetectorFilter.ALL,
     onGateHint: ((GateHint) -> Unit)? = null,
-    onResult: (IdCardData) -> Unit,
+    onResult: (ScannedDocument) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
@@ -96,7 +96,7 @@ fun IdScannerScreen(
 private fun ScannerContent(
     detectorFilter: DetectorFilter,
     onGateHint: ((GateHint) -> Unit)?,
-    onResult: (IdCardData) -> Unit,
+    onResult: (ScannedDocument) -> Unit,
     onCancel: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current

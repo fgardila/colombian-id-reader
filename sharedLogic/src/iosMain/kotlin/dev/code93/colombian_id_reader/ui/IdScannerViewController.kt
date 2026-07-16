@@ -4,7 +4,7 @@ package dev.code93.colombian_id_reader.ui
 
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scanner.IdCaptureSession
 import dev.code93.colombian_id_reader.scanner.IdFrameProcessor
 import dev.code93.colombian_id_reader.scanner.VisionDetectors
@@ -42,7 +42,7 @@ import platform.darwin.dispatch_get_main_queue
  *
  * Handles the camera permission flow itself (once denied, iOS never
  * re-prompts, so the grant button deep-links to Settings). Delivers
- * exactly one [IdCardData] via [onResult] on the main thread. The
+ * exactly one [ScannedDocument] via [onResult] on the main thread. The
  * library never persists, transmits or logs what the camera sees (§7).
  *
  * UI strings and behavior come from [IdScannerOptions] (a static
@@ -54,7 +54,7 @@ import platform.darwin.dispatch_get_main_queue
  */
 internal class IdScannerViewController(
     private val options: IdScannerOptions,
-    private val onResult: (IdCardData) -> Unit,
+    private val onResult: (ScannedDocument) -> Unit,
     private val onCancel: () -> Unit
 ) : UIViewController(nibName = null, bundle = null) {
 

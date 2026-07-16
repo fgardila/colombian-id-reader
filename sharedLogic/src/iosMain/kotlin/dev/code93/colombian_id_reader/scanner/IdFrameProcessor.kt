@@ -6,7 +6,7 @@ import dev.code93.colombian_id_reader.ColombianIdParser
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.DocumentFormat
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.IdCardData
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.scan.CaptureGate
 import dev.code93.colombian_id_reader.scan.GateObservation
@@ -47,7 +47,7 @@ import platform.darwin.dispatch_get_main_queue
 internal class IdFrameProcessor(
     private val filter: DetectorFilter,
     private val detectors: VisionDetectors,
-    private val onSuccess: (IdCardData) -> Unit,
+    private val onSuccess: (ScannedDocument) -> Unit,
     private val onHint: (GateHint) -> Unit = {},
     private val mrzThrottleMs: Long = 250
 ) : NSObject(),

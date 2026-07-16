@@ -3,6 +3,7 @@ package dev.code93.colombian_id_reader.parser.pdf417
 import dev.code93.colombian_id_reader.fixtures.Pdf417Fixtures
 import dev.code93.colombian_id_reader.legacy.LegacyPdf417Oracle
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.Sex
 import dev.code93.colombian_id_reader.parser.DateParsing
 import kotlin.test.Test
@@ -40,9 +41,12 @@ class Pdf417OracleAgreementTest {
         for (fixture in Pdf417Fixtures.all) {
             val legacy = fixture.legacy ?: continue
             val name = "fixture: ${fixture.name}"
-            val data = assertIs<ScanResult.Success>(Pdf417Parser.parse(fixture.raw), name).data
+            val data = assertIs<ScannedDocument.ColombianId>(
+                assertIs<ScanResult.Success>(Pdf417Parser.parse(fixture.raw), name).data,
+                name
+            )
 
-            assertEquals(legacy.cedula.trimStart('0'), data.documentNumber, name)
+            assertEquals(legacy.cedula.trimStart('0'), data.nuip, name)
             // The oracle exposed four positional fields (with " "/""
             // placeholders); the new model merges each pair.
             assertEquals(

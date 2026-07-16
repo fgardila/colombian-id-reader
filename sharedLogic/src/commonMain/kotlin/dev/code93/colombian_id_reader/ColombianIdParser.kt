@@ -2,6 +2,7 @@ package dev.code93.colombian_id_reader
 
 import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.parser.mrz.Td1MrzParser
+import dev.code93.colombian_id_reader.parser.mrz.Td3MrzParser
 import dev.code93.colombian_id_reader.parser.pdf417.Pdf417Parser
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -18,12 +19,22 @@ object ColombianIdParser {
     fun parsePdf417(raw: String): ScanResult = Pdf417Parser.parse(raw)
 
     /**
-     * Parses the three MRZ (TD1) lines of a cédula digital. Lines may
-     * arrive with OCR noise (case, spaces) or as fewer strings containing
-     * newlines; both are normalized before validation.
+     * Parses the three MRZ (TD1) lines of a cédula digital — TD1 ONLY.
+     * For passports use [parseMrzTd3]. Lines may arrive with OCR noise
+     * (case, spaces) or as fewer strings containing newlines; both are
+     * normalized before validation.
      */
     fun parseMrz(rawLines: List<String>): ScanResult =
         Td1MrzParser.parse(rawLines, currentYear())
+
+    /**
+     * Parses the two MRZ (TD3) lines of a passport data page — any
+     * issuing state (ICAO 9303 Part 4). Reading a passport is NOT
+     * identity verification: this returns what is printed, with no
+     * authenticity check.
+     */
+    fun parseMrzTd3(rawLines: List<String>): ScanResult =
+        Td3MrzParser.parse(rawLines, currentYear())
 
     @OptIn(ExperimentalTime::class)
     private fun currentYear(): Int =

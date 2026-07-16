@@ -3,8 +3,9 @@ package dev.code93.colombian_id_reader
 import dev.code93.colombian_id_reader.fixtures.MrzFixtureBuilder
 import dev.code93.colombian_id_reader.fixtures.MrzFixtures
 import dev.code93.colombian_id_reader.fixtures.Pdf417Fixtures
-import dev.code93.colombian_id_reader.model.DocumentSource
+import dev.code93.colombian_id_reader.fixtures.Td3Fixtures
 import dev.code93.colombian_id_reader.model.DocumentType
+import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ErrorReason
 import dev.code93.colombian_id_reader.model.ScanResult
 import kotlin.test.Test
@@ -20,16 +21,24 @@ class ColombianIdParserTest {
     @Test
     fun pdf417HappyPath() {
         val result = ColombianIdParser.parsePdf417(validPdf417.raw)
-        val data = assertIs<ScanResult.Success>(result).data
+        val data = assertIs<ScannedDocument.ColombianId>(assertIs<ScanResult.Success>(result).data)
         assertEquals(validPdf417.expected, data)
     }
 
     @Test
     fun mrzHappyPath() {
         val result = ColombianIdParser.parseMrz(MrzFixtures.validCard)
-        val data = assertIs<ScanResult.Success>(result).data
-        assertEquals("1032456789", data.documentNumber)
-        assertEquals(DocumentSource.MRZ, data.source)
+        val data = assertIs<ScannedDocument.ColombianId>(assertIs<ScanResult.Success>(result).data)
+        assertEquals("1032456789", data.nuip)
+        assertEquals(DocumentType.CEDULA_DIGITAL, data.documentType)
+    }
+
+    @Test
+    fun mrzTd3HappyPath() {
+        val result = ColombianIdParser.parseMrzTd3(Td3Fixtures.icaoSpecimen)
+        val data = assertIs<ScannedDocument.Passport>(assertIs<ScanResult.Success>(result).data)
+        assertEquals("L898902C3", data.passportNumber)
+        assertEquals(DocumentType.PASSPORT, data.documentType)
     }
 
     @Test
@@ -51,11 +60,15 @@ class ColombianIdParserTest {
     @Test
     fun availabilityMatrixBySource() {
         // §4: PDF417 has blood type but no expiration; MRZ the inverse.
-        val pdf417 = assertIs<ScanResult.Success>(ColombianIdParser.parsePdf417(validPdf417.raw)).data
+        val pdf417 = assertIs<ScannedDocument.ColombianId>(
+            assertIs<ScanResult.Success>(ColombianIdParser.parsePdf417(validPdf417.raw)).data
+        )
         assertNotNull(pdf417.bloodType)
         assertNull(pdf417.expirationDate)
 
-        val mrz = assertIs<ScanResult.Success>(ColombianIdParser.parseMrz(MrzFixtures.validCard)).data
+        val mrz = assertIs<ScannedDocument.ColombianId>(
+            assertIs<ScanResult.Success>(ColombianIdParser.parseMrz(MrzFixtures.validCard)).data
+        )
         assertNull(mrz.bloodType)
         assertNotNull(mrz.expirationDate)
     }
