@@ -3,7 +3,8 @@ import SharedLogic
 
 struct ContentView: View {
     @State private var isScanning = false
-    @State private var selectedMode: ScanMode = .auto_
+    @State private var selectedFilter: DetectorFilter = .all
+    @State private var diagnostics = false
     @State private var result: IdCardData?
 
     var body: some View {
@@ -26,27 +27,33 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
 
             Button("Escanear cédula") {
-                selectedMode = .auto_
+                selectedFilter = .all
                 isScanning = true
             }
             .buttonStyle(.borderedProminent)
 
             HStack(spacing: 12) {
                 Button("Solo PDF417") {
-                    selectedMode = .pdf417Only
+                    selectedFilter = .pdf417Only
                     isScanning = true
                 }
                 Button("Solo MRZ") {
-                    selectedMode = .mrzOnly
+                    selectedFilter = .mrzOnly
                     isScanning = true
                 }
             }
             .buttonStyle(.bordered)
+
+            Toggle("Diagnóstico en consola", isOn: $diagnostics)
+                .frame(maxWidth: 260)
+                .onChange(of: diagnostics) { _, enabled in
+                    ScanDebug.shared.listener = enabled ? { print("ColombianIdScan: \($0)") } : nil
+                }
         }
         .padding(32)
         .fullScreenCover(isPresented: $isScanning) {
             ScannerView(
-                mode: selectedMode,
+                detectorFilter: selectedFilter,
                 onResult: { data in
                     result = data
                     isScanning = false

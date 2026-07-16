@@ -106,7 +106,8 @@ Android (Jetpack Compose):
 
 ```kotlin
 IdScannerScreen(
-    mode = ScanMode.AUTO,            // PDF417 first, MRZ fallback
+    // mode = ScanMode.ColombianId is the default (amarilla/digital by evidence)
+    onGateHint = { hint -> /* optional: framing guidance for custom UI */ },
     onResult = { data: IdCardData -> /* hand off, in memory only */ },
     onCancel = { /* navigate back */ }
 )
@@ -118,16 +119,32 @@ iOS (SwiftUI via UIViewControllerRepresentable):
 import SharedLogic
 
 func makeUIViewController(context: Context) -> UIViewController {
-    IdScanner.shared.viewController(
-        mode: .auto_,                // `auto` is reserved in ObjC
-        onResult: { data in /* IdCardData */ },
+    let options = IdScannerOptions()          // texts, detectorFilter, onGateHint
+    return IdScanner.shared.viewController(
+        options: options,
+        onResult: { data in /* IdCardData; data.documentType tells which card */ },
         onCancel: { }
     )
 }
 ```
 
+Every frame passes a capture gate before recognition (0.2.0): the bundled
+screens show framing guidance ("get closer", "hold steady", …) and clients
+with their own UI receive the same `GateHint` conditions via callback.
 Both entry points return a single unified `IdCardData` and never persist,
 transmit, or log what the camera sees.
+
+### Migrating 0.1.x → 0.2.0
+
+- `ScanMode` is now a sealed interface with `ColombianId` (the old `AUTO`
+  semantics, renamed to what the client declares). The debug members
+  `PDF417_ONLY`/`MRZ_ONLY` moved to the optional `DetectorFilter` parameter.
+- iOS: the string-parameter factory overload was replaced by
+  `IdScannerOptions`/`IdScannerTexts` (mutable config objects); the `mode:`
+  parameter is gone until `Passport` lands (ColombianId is implied).
+- New: `IdCardData.documentType` (`CEDULA_AMARILLA`/`CEDULA_DIGITAL`),
+  `onGateHint`, and gate diagnostics in `GateStats`/`ScanDebug`.
+- iOS minimum is now **iOS 15** (`VNDetectDocumentSegmentationRequest`).
 
 ## Releasing
 

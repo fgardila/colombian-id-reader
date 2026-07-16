@@ -17,6 +17,7 @@ kotlinx-coroutines = "1.11.0"
 kotlinx-datetime = "0.7.1"
 material3 = "1.11.0-alpha07"
 mlkitBarcodeScanning = "17.3.0"
+mlkitObjectDetection = "17.0.2"
 mlkitTextRecognition = "16.0.1"
 
 [libraries]
@@ -47,6 +48,7 @@ androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.r
 androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 mlkit-barcodeScanning = { module = "com.google.mlkit:barcode-scanning", version.ref = "mlkitBarcodeScanning" }
+mlkit-objectDetection = { module = "com.google.mlkit:object-detection", version.ref = "mlkitObjectDetection" }
 mlkit-textRecognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitTextRecognition" }
 
 [plugins]

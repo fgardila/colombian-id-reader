@@ -26,14 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.IdCardData
-import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
 private sealed interface DemoScreen {
     data object Home : DemoScreen
-    data class Scanning(val mode: ScanMode) : DemoScreen
+    data class Scanning(val filter: DetectorFilter) : DemoScreen
     data class Result(val data: IdCardData) : DemoScreen
 }
 
@@ -45,7 +45,7 @@ fun DemoApp() {
         when (val current = screen) {
             is DemoScreen.Home -> HomeScreen(onScan = { screen = DemoScreen.Scanning(it) })
             is DemoScreen.Scanning -> IdScannerScreen(
-                mode = current.mode,
+                detectorFilter = current.filter,
                 onResult = { screen = DemoScreen.Result(it) },
                 onCancel = { screen = DemoScreen.Home }
             )
@@ -58,7 +58,7 @@ fun DemoApp() {
 }
 
 @Composable
-private fun HomeScreen(onScan: (ScanMode) -> Unit) {
+private fun HomeScreen(onScan: (DetectorFilter) -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -67,13 +67,13 @@ private fun HomeScreen(onScan: (ScanMode) -> Unit) {
         Text("colombian-id-reader", style = MaterialTheme.typography.headlineSmall)
         Text("Demo", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(32.dp))
-        Button(onClick = { onScan(ScanMode.AUTO) }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { onScan(DetectorFilter.ALL) }, modifier = Modifier.fillMaxWidth()) {
             Text("Escanear cédula")
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onScan(ScanMode.PDF417_ONLY) }) { Text("Solo PDF417") }
-            OutlinedButton(onClick = { onScan(ScanMode.MRZ_ONLY) }) { Text("Solo MRZ") }
+            OutlinedButton(onClick = { onScan(DetectorFilter.PDF417_ONLY) }) { Text("Solo PDF417") }
+            OutlinedButton(onClick = { onScan(DetectorFilter.MRZ_ONLY) }) { Text("Solo MRZ") }
         }
 
         Spacer(Modifier.height(24.dp))
