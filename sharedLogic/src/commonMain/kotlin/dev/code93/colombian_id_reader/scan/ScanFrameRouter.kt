@@ -40,7 +40,7 @@ internal class ScanFrameRouter<F>(
             if (filter == DetectorFilter.PDF417_ONLY) return null
         }
         if (!allowOcr) return null
-        val candidate = MrzCandidateExtractor.extract(mrzOcr(frame)) ?: return null
+        val candidate = MrzCandidateExtractor.extractTd1(mrzOcr(frame)) ?: return null
         return ColombianIdParser.parseMrz(candidate)
     }
 }

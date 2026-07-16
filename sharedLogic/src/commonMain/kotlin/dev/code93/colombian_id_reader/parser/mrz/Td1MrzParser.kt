@@ -118,7 +118,7 @@ internal object Td1MrzParser {
         val expirationDate = DateParsing.parseExpiryYyMmDd(expiry)
             ?: return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
 
-        val names = parseNameLine(line3)
+        val names = MrzNames.parse(line3)
             ?: run {
                 ScanDebug.log { "MRZ parse: name line has no '<<' separator or empty groups: $line3" }
                 return ScanResult.Error(ErrorReason.PATTERN_NOT_FOUND)
@@ -142,29 +142,4 @@ internal object Td1MrzParser {
         )
     }
 
-    private class NameParts(
-        val surnames: String,
-        val givenNames: String
-    )
-
-    /**
-     * '<<' separates the surname group from the given-names group; a
-     * single '<' is BOTH the word separator inside a group and the
-     * space inside a compound name ("DE<LA<OSSA") — indistinguishable
-     * by design, which is why the groups are returned merged.
-     */
-    private fun parseNameLine(line3: String): NameParts? {
-        val content = line3.trimEnd('<')
-        val separator = content.indexOf("<<")
-        if (separator < 0) return null
-
-        val surnames = content.substring(0, separator).split('<').filter { it.isNotEmpty() }
-        val givenNames = content.substring(separator + 2).split('<').filter { it.isNotEmpty() }
-        if (surnames.isEmpty() || givenNames.isEmpty()) return null
-
-        return NameParts(
-            surnames = surnames.joinToString(" "),
-            givenNames = givenNames.joinToString(" ")
-        )
-    }
 }
