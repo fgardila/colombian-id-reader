@@ -7,8 +7,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import dev.code93.colombian_id_reader.model.DetectorFilter
-import dev.code93.colombian_id_reader.model.DocumentFormat
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.model.acceptedFormats
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.scan.CaptureGate
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * ML Kit is done with its buffer.
  */
 internal class IdFrameAnalyzer(
+    mode: ScanMode,
     filter: DetectorFilter,
     private val detectors: MlKitDetectors,
     private val onSuccess: (ScannedDocument) -> Unit,
@@ -47,11 +49,12 @@ internal class IdFrameAnalyzer(
     private var lastHint: GateHint? = null
 
     private val gate = CaptureGate(
-        accepts = setOf(DocumentFormat.Id1), // ScanMode.ColombianId geometry
+        accepts = mode.acceptedFormats,
         stats = stats
     )
 
     private val router = ScanFrameRouter<InputImage>(
+        mode = mode,
         filter = filter,
         pdf417 = detectors::pdf417,
         mrzOcr = { image ->

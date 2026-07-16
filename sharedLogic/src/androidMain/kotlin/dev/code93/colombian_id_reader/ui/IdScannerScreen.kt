@@ -83,7 +83,7 @@ fun IdScannerScreen(
     BackHandler(onBack = onCancel)
 
     if (hasPermission) {
-        ScannerContent(detectorFilter, onGateHint, onResult, onCancel)
+        ScannerContent(mode, detectorFilter, onGateHint, onResult, onCancel)
     } else {
         PermissionRationale(
             onRequest = { launcher.launch(Manifest.permission.CAMERA) },
@@ -94,6 +94,7 @@ fun IdScannerScreen(
 
 @Composable
 private fun ScannerContent(
+    mode: ScanMode,
     detectorFilter: DetectorFilter,
     onGateHint: ((GateHint) -> Unit)?,
     onResult: (ScannedDocument) -> Unit,
@@ -105,8 +106,9 @@ private fun ScannerContent(
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var hint by remember { mutableStateOf<GateHint?>(null) }
 
-    val analyzer = remember(detectorFilter) {
+    val analyzer = remember(mode, detectorFilter) {
         IdFrameAnalyzer(
+            mode = mode,
             filter = detectorFilter,
             detectors = detectors,
             onSuccess = { data ->

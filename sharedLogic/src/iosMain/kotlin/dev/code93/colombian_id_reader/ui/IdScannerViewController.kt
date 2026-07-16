@@ -4,6 +4,7 @@ package dev.code93.colombian_id_reader.ui
 
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scanner.IdCaptureSession
 import dev.code93.colombian_id_reader.scanner.IdFrameProcessor
@@ -129,6 +130,7 @@ internal class IdScannerViewController(
     private fun showScanner() {
         val visionDetectors = VisionDetectors()
         val processor = IdFrameProcessor(
+            mode = options.mode,
             filter = options.detectorFilter,
             detectors = visionDetectors,
             onSuccess = { data ->
@@ -145,7 +147,8 @@ internal class IdScannerViewController(
         )
         val session = IdCaptureSession(
             processor,
-            enablePdf417Metadata = options.detectorFilter != DetectorFilter.MRZ_ONLY
+            enablePdf417Metadata = options.mode == ScanMode.ColombianId &&
+                options.detectorFilter != DetectorFilter.MRZ_ONLY
         )
 
         val layer = AVCaptureVideoPreviewLayer(session = session.session)

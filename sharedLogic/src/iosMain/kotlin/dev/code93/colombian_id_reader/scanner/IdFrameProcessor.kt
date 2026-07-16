@@ -4,8 +4,9 @@ package dev.code93.colombian_id_reader.scanner
 
 import dev.code93.colombian_id_reader.ColombianIdParser
 import dev.code93.colombian_id_reader.model.DetectorFilter
-import dev.code93.colombian_id_reader.model.DocumentFormat
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.model.acceptedFormats
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanResult
 import dev.code93.colombian_id_reader.scan.CaptureGate
@@ -45,6 +46,7 @@ import platform.darwin.dispatch_get_main_queue
  * guarantee (the buffer is only valid during the callback).
  */
 internal class IdFrameProcessor(
+    private val mode: ScanMode,
     private val filter: DetectorFilter,
     private val detectors: VisionDetectors,
     private val onSuccess: (ScannedDocument) -> Unit,
@@ -61,11 +63,12 @@ internal class IdFrameProcessor(
     private var lastHint: GateHint? = null
 
     private val gate = CaptureGate(
-        accepts = setOf(DocumentFormat.Id1), // ScanMode.ColombianId geometry
+        accepts = mode.acceptedFormats,
         stats = stats
     )
 
     private val router = ScanFrameRouter<CVImageBufferRef>(
+        mode = mode,
         filter = filter,
         pdf417 = { detectors.pdf417(it) },
         mrzOcr = { buffer ->
@@ -107,7 +110,7 @@ internal class IdFrameProcessor(
         didOutputMetadataObjects: List<*>,
         fromConnection: AVCaptureConnection
     ) {
-        if (delivered.value != 0 || filter == DetectorFilter.MRZ_ONLY) return
+        if (delivered.value != 0 || mode != ScanMode.ColombianId || filter == DetectorFilter.MRZ_ONLY) return
         val raw = didOutputMetadataObjects
             .filterIsInstance<AVMetadataMachineReadableCodeObject>()
             .firstNotNullOfOrNull { it.stringValue }
