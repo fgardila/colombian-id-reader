@@ -155,7 +155,12 @@ internal class IdScannerViewController(
         layer.videoGravity = AVLayerVideoGravityResizeAspectFill
         view.layer.insertSublayer(layer, atIndex = 0u)
 
-        val overlayView = ScannerOverlayView(texts.instruction)
+        val initialInstruction = if (options.mode == ScanMode.Passport) {
+            texts.instructionPassport
+        } else {
+            texts.instruction
+        }
+        val overlayView = ScannerOverlayView(initialInstruction)
         view.insertSubview(overlayView, belowSubview = cancelButton)
 
         detectors = visionDetectors

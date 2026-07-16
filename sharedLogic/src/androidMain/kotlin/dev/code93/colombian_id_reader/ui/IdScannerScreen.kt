@@ -139,7 +139,7 @@ private fun ScannerContent(
             }
         )
         ScannerOverlay(
-            instruction = stringResource(hint.instructionRes()),
+            instruction = stringResource(hint.instructionRes(mode)),
             cancelLabel = stringResource(R.string.colombian_id_scanner_cancel),
             highlight = hint == GateHint.PASS,
             onCancel = onCancel
@@ -156,8 +156,12 @@ private fun ScannerContent(
     }
 }
 
-private fun GateHint?.instructionRes(): Int = when (this) {
-    null -> R.string.colombian_id_scanner_instruction
+private fun GateHint?.instructionRes(mode: ScanMode): Int = when (this) {
+    null -> if (mode == ScanMode.Passport) {
+        R.string.colombian_id_scanner_instruction_passport
+    } else {
+        R.string.colombian_id_scanner_instruction
+    }
     GateHint.NO_DOCUMENT -> R.string.colombian_id_scanner_hint_no_document
     GateHint.TOO_SMALL -> R.string.colombian_id_scanner_hint_too_small
     GateHint.SKEWED -> R.string.colombian_id_scanner_hint_skewed

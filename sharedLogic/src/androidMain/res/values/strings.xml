@@ -11,4 +11,5 @@
     <string name="colombian_id_scanner_hint_skewed">Enderece el documento</string>
     <string name="colombian_id_scanner_hint_hold_steady">Mantenga el dispositivo firme</string>
     <string name="colombian_id_scanner_hint_pass">Leyendo…</string>
+    <string name="colombian_id_scanner_instruction_passport">Presente la página de datos del pasaporte</string>
 </resources>

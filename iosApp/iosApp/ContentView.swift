@@ -3,6 +3,7 @@ import SharedLogic
 
 struct ContentView: View {
     @State private var isScanning = false
+    @State private var selectedMode: ScanMode = ScanModeColombianId.shared
     @State private var selectedFilter: DetectorFilter = .all
     @State private var diagnostics = false
     @State private var result: ScannedDocument?
@@ -27,6 +28,14 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
 
             Button("Escanear cédula") {
+                selectedMode = ScanModeColombianId.shared
+                selectedFilter = .all
+                isScanning = true
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button("Escanear pasaporte") {
+                selectedMode = ScanModePassport.shared
                 selectedFilter = .all
                 isScanning = true
             }
@@ -34,10 +43,12 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button("Solo PDF417") {
+                    selectedMode = ScanModeColombianId.shared
                     selectedFilter = .pdf417Only
                     isScanning = true
                 }
                 Button("Solo MRZ") {
+                    selectedMode = ScanModeColombianId.shared
                     selectedFilter = .mrzOnly
                     isScanning = true
                 }
@@ -53,6 +64,7 @@ struct ContentView: View {
         .padding(32)
         .fullScreenCover(isPresented: $isScanning) {
             ScannerView(
+                mode: selectedMode,
                 detectorFilter: selectedFilter,
                 onResult: { data in
                     result = data

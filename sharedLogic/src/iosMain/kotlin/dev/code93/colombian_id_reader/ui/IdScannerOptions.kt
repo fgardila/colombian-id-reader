@@ -36,6 +36,7 @@ public class IdScannerOptions {
 /** UI strings for the bundled scanning screen, Spanish by default. */
 public class IdScannerTexts {
     public var instruction: String = "Alinee el documento dentro del marco"
+    public var instructionPassport: String = "Presente la página de datos del pasaporte"
     public var cancel: String = "Cancelar"
     public var permissionRationale: String =
         "Para escanear el documento se necesita acceso a la cámara. La imagen se " +
