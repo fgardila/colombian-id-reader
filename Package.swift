@@ -14,8 +14,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "SharedLogic",
-            url: "https://github.com/fgardila/colombian-id-reader/releases/download/v0.2.0/SharedLogic.xcframework.zip",
-            checksum: "723672e8d79df12ea5a9093f98549f086272a97bec3f4d250036485c911efd4f"
+            url: "https://github.com/fgardila/colombian-id-reader/releases/download/v0.3.0/SharedLogic.xcframework.zip",
+            checksum: "1bf771c988cfefba8380204a38173826e376c0c66db3308b425e101684470afa"
         )
     ]
 )
