@@ -26,6 +26,15 @@ public class IdScannerOptions {
     /** Development aid — leave at ALL in production. */
     public var detectorFilter: DetectorFilter = DetectorFilter.ALL
 
+    /**
+     * Two-side flow with document images in the result
+     * (ARCHITECTURE-1.0.0.md): front then back, JPEGs of the frames the
+     * recognizers worked on, plus the front/back name cross-check. Off
+     * by default (§7 — the images carry biometric data); ignored in
+     * passport mode, which stays data-page only.
+     */
+    public var captureImages: Boolean = false
+
     /** Capture-gate framing hints, for clients with their own guidance UI. */
     public var onGateHint: ((GateHint) -> Unit)? = null
 
@@ -37,6 +46,8 @@ public class IdScannerOptions {
 public class IdScannerTexts {
     public var instruction: String = "Alinee el documento dentro del marco"
     public var instructionPassport: String = "Presente la página de datos del pasaporte"
+    public var instructionFront: String = "Muestre el frente del documento"
+    public var instructionFlip: String = "Ahora voltee el documento"
     public var cancel: String = "Cancelar"
     public var permissionRationale: String =
         "Para escanear el documento se necesita acceso a la cámara. La imagen se " +

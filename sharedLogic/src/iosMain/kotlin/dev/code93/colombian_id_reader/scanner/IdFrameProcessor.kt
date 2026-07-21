@@ -5,10 +5,12 @@ package dev.code93.colombian_id_reader.scanner
 import dev.code93.colombian_id_reader.ColombianIdParser
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.model.acceptedFormats
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.scan.CaptureFlowController
 import dev.code93.colombian_id_reader.scan.CaptureGate
 import dev.code93.colombian_id_reader.scan.GateObservation
 import dev.code93.colombian_id_reader.scan.GateStats
@@ -41,16 +43,31 @@ import platform.darwin.dispatch_get_main_queue
  * hot: barcode decoding is cheap and self-validating, and gating it
  * would only add latency to the cédula amarilla.
  *
- * Frames are processed synchronously on the serial capture queue —
- * that is both the backpressure model and the CMSampleBuffer lifetime
- * guarantee (the buffer is only valid during the callback).
+ * With [captureImages] (ARCHITECTURE-1.0.0.md §5) the scan is a
+ * two-side flow (FRONT gate-driven phase, then BACK). The pipeline is
+ * synchronous, so the winning frame's pixel buffer is in hand when the
+ * parser succeeds — except on the metadata (PDF417) leg, which carries
+ * no pixels: there the parsed document is stashed and the NEXT video
+ * frame (~33 ms later, same scene — the barcode was just decoded, so
+ * the card is in view) supplies the back image and completes delivery.
+ * The session keeps running until that delivery, so the frame is
+ * guaranteed; cancelling first means nothing is delivered, exactly as
+ * today.
+ *
+ * Both delegates run on the SAME serial capture queue (IdCaptureSession
+ * wires them so), which is why the phase/pending state needs no locks.
+ * Frames are processed synchronously on that queue — that is both the
+ * backpressure model and the CMSampleBuffer lifetime guarantee (the
+ * buffer is only valid during the callback).
  */
 internal class IdFrameProcessor(
     private val mode: ScanMode,
     private val filter: DetectorFilter,
     private val detectors: VisionDetectors,
-    private val onSuccess: (ScannedDocument) -> Unit,
+    captureImages: Boolean = false,
+    private val onSuccess: (ScanCapture) -> Unit,
     private val onHint: (GateHint) -> Unit = {},
+    private val onPhase: (CaptureFlowController.Phase) -> Unit = {},
     private val mrzThrottleMs: Long = 250
 ) : NSObject(),
     AVCaptureVideoDataOutputSampleBufferDelegateProtocol,
@@ -62,10 +79,27 @@ internal class IdFrameProcessor(
     private var lastMrzAttemptAt = 0L // capture queue only
     private var lastHint: GateHint? = null
 
-    private val gate = CaptureGate(
-        accepts = mode.acceptedFormats,
-        stats = stats
-    )
+    // Passports stay data-page only (1.0.0 scope): no image capture.
+    private val effectiveCapture = captureImages && mode == ScanMode.ColombianId
+
+    init {
+        if (captureImages && !effectiveCapture) {
+            ScanDebug.log { "captureImages ignored: passport mode is data-only (1.0.0 §3)" }
+        }
+    }
+
+    private val flow = CaptureFlowController(effectiveCapture)
+    private val jpeg by lazy { PixelBufferJpeg() }
+
+    // Capture-queue state for the metadata leg's deferred delivery and
+    // for cropping a frame the detectors haven't measured.
+    private var pendingBackDocument: ScannedDocument? = null
+    private var lastBox: GateObservation.Box? = null
+
+    // Streak/tracking state belongs to one side: fresh gate per phase.
+    private var gate = newGate()
+
+    private fun newGate() = CaptureGate(accepts = mode.acceptedFormats, stats = stats)
 
     private val router = ScanFrameRouter<CVImageBufferRef>(
         mode = mode,
@@ -90,12 +124,54 @@ internal class IdFrameProcessor(
         if (delivered.value != 0) return
         val pixelBuffer = didOutputSampleBuffer?.let { CMSampleBufferGetImageBuffer(it) } ?: return
 
-        val verdict = gate.evaluate(observe(pixelBuffer))
-        emitHint(verdict.hint)
-        stats.onOcrDecision(verdict.pass)
+        // A barcode won on the metadata leg: this frame exists to supply
+        // the back image (the metadata callback has no pixels).
+        pendingBackDocument?.let { document ->
+            if (delivered.compareAndSet(0, 1)) {
+                val box = lastBox ?: observe(pixelBuffer).let { it.quad?.boundingBox() }
+                val backJpeg = jpeg.encode(pixelBuffer, box)
+                ScanDebug.log { stats.summary() }
+                val capture = flow.assemble(document, backJpeg)
+                dispatch_async(dispatch_get_main_queue()) { onSuccess(capture) }
+            }
+            return
+        }
 
+        val observation = observe(pixelBuffer)
+        lastBox = observation.quad?.boundingBox() ?: lastBox
+        val verdict = gate.evaluate(observation)
+        emitHint(verdict.hint)
+
+        if (flow.phase == CaptureFlowController.Phase.FRONT) {
+            if (flow.shouldCaptureFront(verdict)) {
+                // Same frame for image and OCR: the buffer is valid
+                // for the duration of this callback.
+                val frontJpeg = jpeg.encode(pixelBuffer, observation.quad?.boundingBox())
+                val frontLines = detectors.mrzLines(pixelBuffer)
+                flow.onFrontCaptured(frontJpeg, frontLines)
+                gate = newGate()
+                lastBox = null
+                dispatch_async(dispatch_get_main_queue()) {
+                    if (delivered.value == 0) onPhase(CaptureFlowController.Phase.BACK)
+                }
+            }
+            return // front frames never reach the recognizers
+        }
+
+        stats.onOcrDecision(verdict.pass)
         val result = runBlocking { router.process(pixelBuffer, allowOcr = verdict.pass) }
-        deliverIfSuccess(result)
+        if (result is ScanResult.Success && delivered.compareAndSet(0, 1)) {
+            // Encode inside the callback — this IS the frame the data
+            // came from (§4.1), valid only until it returns.
+            val backJpeg = if (effectiveCapture) {
+                jpeg.encode(pixelBuffer, observation.quad?.boundingBox())
+            } else {
+                null
+            }
+            ScanDebug.log { stats.summary() }
+            val capture = flow.assemble(result.data, backJpeg)
+            dispatch_async(dispatch_get_main_queue()) { onSuccess(capture) }
+        }
         // Error / null: expected on partial frames — keep scanning.
     }
 
@@ -110,19 +186,28 @@ internal class IdFrameProcessor(
         didOutputMetadataObjects: List<*>,
         fromConnection: AVCaptureConnection
     ) {
-        if (delivered.value != 0 || mode != ScanMode.ColombianId || filter == DetectorFilter.MRZ_ONLY) return
+        if (delivered.value != 0 || pendingBackDocument != null) return
+        if (mode != ScanMode.ColombianId || filter == DetectorFilter.MRZ_ONLY) return
+        // The barcode is on the BACK: during the front phase this read
+        // would capture the wrong side — the flip guidance is coming.
+        if (flow.phase == CaptureFlowController.Phase.FRONT) return
         val raw = didOutputMetadataObjects
             .filterIsInstance<AVMetadataMachineReadableCodeObject>()
             .firstNotNullOfOrNull { it.stringValue }
             ?: return
-        deliverIfSuccess(ColombianIdParser.parsePdf417(raw))
-    }
+        val result = ColombianIdParser.parsePdf417(raw)
+        if (result !is ScanResult.Success) return
 
-    private fun deliverIfSuccess(result: ScanResult?) {
-        if (result is ScanResult.Success && delivered.compareAndSet(0, 1)) {
-            ScanDebug.log { stats.summary() }
-            dispatch_async(dispatch_get_main_queue()) { onSuccess(result.data) }
+        if (!effectiveCapture) {
+            if (delivered.compareAndSet(0, 1)) {
+                ScanDebug.log { stats.summary() }
+                val capture = flow.assemble(result.data, backJpeg = null)
+                dispatch_async(dispatch_get_main_queue()) { onSuccess(capture) }
+            }
+            return
         }
+        // No pixels in this callback: defer to the next video frame.
+        pendingBackDocument = result.data
     }
 
     private fun observe(buffer: CVImageBufferRef): GateObservation {
