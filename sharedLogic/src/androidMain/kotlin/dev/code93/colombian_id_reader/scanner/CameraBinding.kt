@@ -2,6 +2,7 @@ package dev.code93.colombian_id_reader.scanner
 
 import android.content.Context
 import android.util.Size
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -15,7 +16,8 @@ import java.util.concurrent.Executor
 
 /**
  * Binds preview + analysis to the back camera and returns the provider
- * so the caller can unbindAll() on success or dispose.
+ * (so the caller can unbindAll() on success or dispose) plus the bound
+ * [Camera] (for torch control — dark environments need the lamp).
  *
  * Analysis targets 2560x1440: the CameraX default (640x480) is far too
  * low for MRZ OCR, and the cédula's dense PDF417 proved marginal at
@@ -27,7 +29,7 @@ internal fun bindScanner(
     previewView: PreviewView,
     analyzer: ImageAnalysis.Analyzer,
     analysisExecutor: Executor,
-    onBound: (ProcessCameraProvider) -> Unit
+    onBound: (ProcessCameraProvider, Camera) -> Unit
 ) {
     val future = ProcessCameraProvider.getInstance(context)
     future.addListener({
@@ -53,12 +55,12 @@ internal fun bindScanner(
             .also { it.setAnalyzer(analysisExecutor, analyzer) }
 
         provider.unbindAll()
-        provider.bindToLifecycle(
+        val camera = provider.bindToLifecycle(
             lifecycleOwner,
             CameraSelector.DEFAULT_BACK_CAMERA,
             preview,
             analysis
         )
-        onBound(provider)
+        onBound(provider, camera)
     }, ContextCompat.getMainExecutor(context))
 }

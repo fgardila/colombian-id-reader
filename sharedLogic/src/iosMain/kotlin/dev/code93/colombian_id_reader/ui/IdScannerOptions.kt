@@ -1,5 +1,6 @@
 package dev.code93.colombian_id_reader.ui
 
+import dev.code93.colombian_id_reader.model.CapturePhase
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.ScanMode
@@ -26,8 +27,24 @@ public class IdScannerOptions {
     /** Development aid — leave at ALL in production. */
     public var detectorFilter: DetectorFilter = DetectorFilter.ALL
 
+    /**
+     * Two-side flow with document images in the result
+     * (ARCHITECTURE-1.0.0.md): front then back, JPEGs of the frames the
+     * recognizers worked on, plus the front/back name cross-check. Off
+     * by default (§7 — the images carry biometric data); ignored in
+     * passport mode, which stays data-page only.
+     */
+    public var captureImages: Boolean = false
+
     /** Capture-gate framing hints, for clients with their own guidance UI. */
     public var onGateHint: ((GateHint) -> Unit)? = null
+
+    /**
+     * Fired on the FRONT → BACK transition of the two-side flow (main
+     * queue), for clients drawing their own side guidance — e.g. a
+     * ghost of the document face. See [CapturePhase].
+     */
+    public var onCapturePhase: ((CapturePhase) -> Unit)? = null
 
     /** UI strings; Spanish defaults (a static framework has no bundle). */
     public var texts: IdScannerTexts = IdScannerTexts()
@@ -37,6 +54,11 @@ public class IdScannerOptions {
 public class IdScannerTexts {
     public var instruction: String = "Alinee el documento dentro del marco"
     public var instructionPassport: String = "Presente la página de datos del pasaporte"
+    public var instructionFront: String = "Muestre el frente del documento"
+    public var instructionFlip: String = "Ahora voltee el documento"
+    /** Accessibility labels for the torch toggle. */
+    public var flashOn: String = "Encender linterna"
+    public var flashOff: String = "Apagar linterna"
     public var cancel: String = "Cancelar"
     public var permissionRationale: String =
         "Para escanear el documento se necesita acceso a la cámara. La imagen se " +

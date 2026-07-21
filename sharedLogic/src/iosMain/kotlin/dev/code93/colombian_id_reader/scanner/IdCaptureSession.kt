@@ -7,11 +7,19 @@ import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVCaptureDeviceInput
 import platform.AVFoundation.AVCaptureMetadataOutput
 import platform.AVFoundation.AVCaptureSession
+import platform.AVFoundation.AVCaptureMaxAvailableTorchLevel
 import platform.AVFoundation.AVCaptureSessionPreset1920x1080
 import platform.AVFoundation.AVCaptureSessionPreset3840x2160
+import platform.AVFoundation.AVCaptureTorchModeOff
 import platform.AVFoundation.AVCaptureVideoDataOutput
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVMetadataObjectTypePDF417Code
+import platform.AVFoundation.hasTorch
+import platform.AVFoundation.setTorchModeOnWithLevel
+import platform.AVFoundation.torchActive
+import platform.AVFoundation.torchAvailable
+import platform.AVFoundation.torchMode
+import dev.code93.colombian_id_reader.scan.ScanDebug
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_queue_create
 
@@ -37,6 +45,49 @@ internal class IdCaptureSession(
         dispatch_queue_create("dev.code93.colombian_id_reader.capture", attr = null)
 
     private var configured = false
+    private var device: AVCaptureDevice? = null // session queue only
+
+    /**
+     * Torch for dark environments. Serialized on the session queue; a
+     * device without a torch (or none at all — simulator) is a no-op.
+     * AVFoundation turns the lamp off itself when the session stops.
+     *
+     * Turning ON uses [setTorchModeOnWithLevel] — the canonical call
+     * while a session is streaming; a plain `torchMode = On` assignment
+     * proved unreliable on real devices. Every bail-out is reported via
+     * [ScanDebug] so a dark lamp is diagnosable in the field.
+     */
+    fun setTorch(on: Boolean) {
+        dispatch_async(sessionQueue) {
+            val target = device
+            if (target == null) {
+                ScanDebug.log { "torch: no capture device (session not configured?)" }
+                return@dispatch_async
+            }
+            if (!target.hasTorch) {
+                ScanDebug.log { "torch: device has no torch" }
+                return@dispatch_async
+            }
+            if (!target.lockForConfiguration(null)) {
+                ScanDebug.log { "torch: lockForConfiguration denied" }
+                return@dispatch_async
+            }
+            if (on) {
+                // torchAvailable can be false transiently (thermal).
+                val lit = target.torchAvailable &&
+                    target.setTorchModeOnWithLevel(AVCaptureMaxAvailableTorchLevel, error = null)
+                if (!lit) {
+                    ScanDebug.log {
+                        "torch: on failed (available=${target.torchAvailable})"
+                    }
+                }
+            } else {
+                target.torchMode = AVCaptureTorchModeOff
+            }
+            target.unlockForConfiguration()
+            ScanDebug.log { "torch: requested=$on active=${target.torchActive}" }
+        }
+    }
 
     /** Configure on first call, then start. Work hops to the session queue. */
     fun start() {
@@ -69,6 +120,7 @@ internal class IdCaptureSession(
         val input = device?.let { AVCaptureDeviceInput.deviceInputWithDevice(it, error = null) }
         if (input != null && session.canAddInput(input)) {
             session.addInput(input)
+            this.device = device
         }
 
         // videoSettings left at default: modern devices already deliver
