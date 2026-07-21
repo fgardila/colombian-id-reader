@@ -8,6 +8,7 @@ import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.scan.CaptureFlowController
+import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.scanner.IdCaptureSession
 import dev.code93.colombian_id_reader.scanner.IdFrameProcessor
 import dev.code93.colombian_id_reader.scanner.VisionDetectors
@@ -221,6 +222,7 @@ internal class IdScannerViewController(
     @ObjCAction
     internal fun flashTapped() {
         torchOn = !torchOn
+        ScanDebug.log { "torch: tapped -> $torchOn" }
         captureSession?.setTorch(torchOn)
         updateFlashButton()
         view.setNeedsLayout()
