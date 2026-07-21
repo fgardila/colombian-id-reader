@@ -4,13 +4,15 @@ import SharedLogic
 struct ScannerView: UIViewControllerRepresentable {
     let mode: ScanMode
     let detectorFilter: DetectorFilter
-    let onResult: (ScannedDocument) -> Void
+    let captureImages: Bool
+    let onResult: (ScanCapture) -> Void
     let onCancel: () -> Void
 
     func makeUIViewController(context: Context) -> UIViewController {
         let options = IdScannerOptions()
         options.mode = mode
         options.detectorFilter = detectorFilter
+        options.captureImages = captureImages
         return IdScanner.shared.viewController(
             options: options,
             onResult: onResult,

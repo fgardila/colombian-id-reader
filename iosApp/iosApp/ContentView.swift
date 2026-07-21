@@ -5,12 +5,17 @@ struct ContentView: View {
     @State private var isScanning = false
     @State private var selectedMode: ScanMode = ScanModeColombianId.shared
     @State private var selectedFilter: DetectorFilter = .all
+    @State private var captureImages = false
     @State private var diagnostics = false
-    @State private var result: ScannedDocument?
+    @State private var capture: ScanCapture?
 
     var body: some View {
-        if let data = result {
-            ResultView(data: data) { result = nil }
+        if let capture {
+            ResultView(capture: capture) {
+                // Ciclo de vida §7: desechar las imágenes al salir.
+                capture.images?.dispose()
+                self.capture = nil
+            }
         } else {
             home
         }
@@ -35,6 +40,7 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
 
             Button("Escanear pasaporte") {
+                // Pasaporte: solo página de datos, sin captura (1.0.0 §3).
                 selectedMode = ScanModePassport.shared
                 selectedFilter = .all
                 isScanning = true
@@ -55,8 +61,11 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
 
+            Toggle("Capturar imágenes (frente y reverso)", isOn: $captureImages)
+                .frame(maxWidth: 280)
+
             Toggle("Diagnóstico en consola", isOn: $diagnostics)
-                .frame(maxWidth: 260)
+                .frame(maxWidth: 280)
                 .onChange(of: diagnostics) { _, enabled in
                     ScanDebug.shared.listener = enabled ? { print("ColombianIdScan: \($0)") } : nil
                 }
@@ -66,8 +75,9 @@ struct ContentView: View {
             ScannerView(
                 mode: selectedMode,
                 detectorFilter: selectedFilter,
-                onResult: { data in
-                    result = data
+                captureImages: selectedMode is ScanModeColombianId ? captureImages : false,
+                onResult: { capture in
+                    self.capture = capture
                     isScanning = false
                 },
                 onCancel: { isScanning = false }
@@ -78,8 +88,10 @@ struct ContentView: View {
 }
 
 struct ResultView: View {
-    let data: ScannedDocument
+    let capture: ScanCapture
     let onScanAgain: () -> Void
+
+    private var data: ScannedDocument { capture.document }
 
     var body: some View {
         ScrollView {
@@ -108,12 +120,45 @@ struct ResultView: View {
                     field("Nombre posiblemente truncado", passport.namesTruncated ? "Sí" : "No")
                 }
 
+                if let images = capture.images {
+                    field("Verificación de nombres (frente vs. reverso)", nameMatchText)
+                    if let front = DocumentImagesNSDataKt.frontData(images: images),
+                       let image = UIImage(data: front) {
+                        capturedImage("Frente", image)
+                    }
+                    if let back = UIImage(data: DocumentImagesNSDataKt.backData(images: images)) {
+                        capturedImage("Reverso", back)
+                    }
+                }
+
                 Button("Escanear otra") { onScanAgain() }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 24)
             }
             .padding(24)
+        }
+    }
+
+    private var nameMatchText: String {
+        switch capture.nameMatch {
+        case .match: return "Coinciden"
+        case .mismatch: return "NO coinciden"
+        default: return "No verificado"
+        }
+    }
+
+    private func capturedImage(_ label: String, _ image: UIImage) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .cornerRadius(8)
+            Divider().padding(.vertical, 6)
         }
     }
 
