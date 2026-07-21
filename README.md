@@ -1,20 +1,25 @@
 # colombian-id-reader
 
 A **Kotlin Multiplatform (KMP)** library for reading Colombian identity documents
-and returning their data as a single structured object. Ships as an **AAR for
-Android** and an **XCFramework for iOS**.
+and returning their data as a single structured object — optionally together
+with **JPEG images of both sides of the document** (1.0.0). Ships as an **AAR
+for Android** and an **XCFramework for iOS**.
 
-It supports both generations of the Colombian cédula:
+It supports both generations of the Colombian cédula, plus machine-readable
+passports:
 
-| Document | Read via |
-|---|---|
-| **Cédula amarilla** (2010s) | **PDF417** barcode |
-| **Cédula digital** (2021+) | **MRZ (TD1, ICAO 9303)** via on-device OCR |
+| Document | Read via | Image capture |
+|---|---|---|
+| **Cédula amarilla** (2010s) | **PDF417** barcode | front + back (opt-in) |
+| **Cédula digital** (2021+) | **MRZ (TD1, ICAO 9303)** via on-device OCR | front + back (opt-in) |
+| **Passport** (any state) | **MRZ (TD3, ICAO 9303)** via on-device OCR | — (data page only) |
 
-The library provides the scanning UI and returns one unified `IdCardData`
-object, regardless of which document type was read.
+The library provides the scanning UI and returns one `ScanCapture` holding the
+parsed document, the images (when requested), and a front/back name
+cross-check.
 
 > Full design rationale, decisions, and trade-offs: [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md)
+> and the per-version documents (`doc/ARCHITECTURE-*.md`).
 
 ## Key design points
 
@@ -30,6 +35,18 @@ object, regardless of which document type was read.
 ## Data model
 
 ```kotlin
+class ScanCapture(
+    val document: ScannedDocument,   // the parsed data
+    val images: DocumentImages?,     // null unless captureImages was requested
+    val nameMatch: NameMatch         // MATCH | MISMATCH | NOT_CHECKED
+)
+
+class DocumentImages(
+    val front: ByteArray?,           // JPEG; null if front encoding failed
+    val back: ByteArray,             // JPEG of the frame the data came from
+    val format: ImageFormat          // JPEG
+) { fun dispose() /* zero-fills both buffers */ }
+
 sealed interface ScannedDocument {
     val documentType: DocumentType   // CEDULA_AMARILLA | CEDULA_DIGITAL | PASSPORT
     val givenNames: String           // merged: "FABIAN GUILLERMO"
@@ -59,10 +76,28 @@ sealed interface ScannedDocument {
 Each subtype exposes only the fields its document actually carries; names
 are merged strings (neither encoding can reliably split compound names).
 
+The images are the camera frames the recognizers actually worked on —
+cropped to the document and rotated upright — so the image is guaranteed to
+correspond to the returned data. `nameMatch` compares the names OCR'd from
+the front against the names decoded from the back (diacritics-normalized,
+length-normalized Levenshtein): a *linkage* signal that front and back
+belong to the same document. It advises; it never blocks — apply your own
+risk policy, and expect `NOT_CHECKED` when the front OCR yields nothing
+usable.
+
 > **Reading is not verifying.** A successful passport (or cédula) scan
 > returns what is printed. It does not establish that the document is
 > genuine or that the bearer is the holder — do not treat a scan as
-> identity verification.
+> identity verification. The name cross-check is not an anti-fraud control.
+
+> **Privacy — raised stakes with images (1.0.0).** The captured images
+> include the holder's **facial photograph and signature** — biometric
+> data, a reinforced sensitive category under Ley 1581 de 2012. The SDK
+> captures and hands over, never stores; consent and retention are your
+> responsibility. Image capture is **off by default**; when you use it,
+> drop references promptly, call `DocumentImages.dispose()` once
+> persisted or discarded, and never let the bytes reach logs or crash
+> reporters.
 
 ## Module layout
 
@@ -100,7 +135,7 @@ dependencyResolutionManagement {
 
 // build.gradle.kts (Android app)
 dependencies {
-    implementation("dev.code93:colombian-id-reader-android:0.1.0")
+    implementation("dev.code93:colombian-id-reader-android:1.0.0")
 }
 // From a KMP project, depend on the root "dev.code93:colombian-id-reader" instead.
 ```
@@ -124,8 +159,13 @@ Android (Jetpack Compose):
 ```kotlin
 IdScannerScreen(
     // mode = ScanMode.ColombianId is the default (amarilla/digital by evidence)
+    captureImages = true,   // opt-in: front→back flow + images + name cross-check
     onGateHint = { hint -> /* optional: framing guidance for custom UI */ },
-    onResult = { data: IdCardData -> /* hand off, in memory only */ },
+    onResult = { capture: ScanCapture ->
+        val document = capture.document      // ScannedDocument
+        val images = capture.images          // DocumentImages? (JPEGs)
+        // persist or discard, then: images?.dispose()
+    },
     onCancel = { /* navigate back */ }
 )
 ```
@@ -137,9 +177,17 @@ import SharedLogic
 
 func makeUIViewController(context: Context) -> UIViewController {
     let options = IdScannerOptions()          // texts, detectorFilter, onGateHint
+    options.captureImages = true              // opt-in, cédula modes only
     return IdScanner.shared.viewController(
         options: options,
-        onResult: { data in /* IdCardData; data.documentType tells which card */ },
+        onResult: { capture in
+            let document = capture.document   // branch on documentType, then cast
+            if let images = capture.images {
+                let front = DocumentImagesNSDataKt.frontData(images: images) // NSData
+                let back  = DocumentImagesNSDataKt.backData(images: images)
+                // persist or discard, then: images.dispose()
+            }
+        },
         onCancel: { }
     )
 }
@@ -147,9 +195,23 @@ func makeUIViewController(context: Context) -> UIViewController {
 
 Every frame passes a capture gate before recognition (0.2.0): the bundled
 screens show framing guidance ("get closer", "hold steady", …) and clients
-with their own UI receive the same `GateHint` conditions via callback.
-Both entry points return a single unified `IdCardData` and never persist,
-transmit, or log what the camera sees.
+with their own UI receive the same `GateHint` conditions via callback. With
+`captureImages` the cédula flow guides the user front-first ("Muestre el
+frente…", "Ahora voltee el documento") and the back side then behaves
+exactly as before. Both entry points deliver a single `ScanCapture` and
+never persist, transmit, or log what the camera sees.
+
+### Migrating 0.3.0 → 1.0.0
+
+- **`onResult` now delivers `ScanCapture`** instead of `ScannedDocument` —
+  the only breaking change. Your document is `capture.document`; if you
+  don't request images, `capture.images` is null and
+  `capture.nameMatch == NOT_CHECKED`, and the scan flow, cost and latency
+  are unchanged.
+- New opt-ins: `IdScannerScreen(captureImages = true)` on Android,
+  `options.captureImages = true` on iOS. Cédula modes only — passport
+  scans stay data-page only and ignore the flag.
+- Parsers, `ScannedDocument`, `ScanMode` and the gate are untouched.
 
 ### Migrating 0.2.0 → 0.3.0
 
@@ -209,3 +271,8 @@ iOS: open [iosApp/](iosApp) in Xcode and run from there.
 3. ✅ **Phase 3 — iOS scanner + UI**: AVFoundation + Vision, Swift-friendly API.
 4. ✅ **Phase 4 — Packaging**: Maven/GitHub Packages for Android, XCFramework/SPM
    for iOS, CI + release automation.
+5. ✅ **0.2.0 — Capture gate**: evidence-based "when to read" (framing, focus,
+   stability) with UX hints and a false-negative grace valve.
+6. ✅ **0.3.0 — Passports**: MRZ TD3 (any issuing state), `ScannedDocument` model.
+7. ✅ **1.0.0 — Document images**: front→back capture flow, JPEGs of the frames
+   the data came from, front/back name cross-check (Levenshtein).

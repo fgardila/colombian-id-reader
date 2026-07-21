@@ -97,7 +97,8 @@ publishing {
             description.set(
                 "Kotlin Multiplatform library for reading Colombian identity " +
                     "documents (PDF417 cedula amarilla + MRZ cedula digital) " +
-                    "and machine-readable passports (MRZ TD3)"
+                    "and machine-readable passports (MRZ TD3), with optional " +
+                    "document image capture"
             )
             url.set("https://github.com/fgardila/colombian-id-reader")
             scm {
