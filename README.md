@@ -198,8 +198,11 @@ screens show framing guidance ("get closer", "hold steady", …) and clients
 with their own UI receive the same `GateHint` conditions via callback. With
 `captureImages` the cédula flow guides the user front-first ("Muestre el
 frente…", "Ahora voltee el documento") and the back side then behaves
-exactly as before. Both entry points deliver a single `ScanCapture` and
-never persist, transmit, or log what the camera sees.
+exactly as before. Clients drawing their own side guidance (e.g. a ghost
+wireframe of the document face, as both demo apps do) get the FRONT → BACK
+transition via `onCapturePhase` (`CapturePhase`), the same pattern as
+`onGateHint`. Both entry points deliver a single `ScanCapture` and never
+persist, transmit, or log what the camera sees.
 
 ### Migrating 0.3.0 → 1.0.0
 

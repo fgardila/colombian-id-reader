@@ -12,9 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -30,8 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import dev.code93.colombian_id_reader.model.CapturePhase
 import dev.code93.colombian_id_reader.model.DetectorFilter
+import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.NameMatch
 import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
@@ -39,12 +46,17 @@ import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
+/** Which cédula generation the demo user says they hold — drives the
+ *  ghost wireframe only; the scanner itself decides by evidence. */
+private enum class DemoGeneration { AMARILLA, DIGITAL }
+
 private sealed interface DemoScreen {
     data object Home : DemoScreen
     data class Scanning(
         val mode: ScanMode,
         val filter: DetectorFilter,
-        val captureImages: Boolean
+        val captureImages: Boolean,
+        val generation: DemoGeneration?
     ) : DemoScreen
     data class Result(val capture: ScanCapture) : DemoScreen
 }
@@ -56,14 +68,12 @@ fun DemoApp() {
 
         when (val current = screen) {
             is DemoScreen.Home -> HomeScreen(
-                onScan = { mode, filter, captureImages ->
-                    screen = DemoScreen.Scanning(mode, filter, captureImages)
+                onScan = { mode, filter, captureImages, generation ->
+                    screen = DemoScreen.Scanning(mode, filter, captureImages, generation)
                 }
             )
-            is DemoScreen.Scanning -> IdScannerScreen(
-                mode = current.mode,
-                detectorFilter = current.filter,
-                captureImages = current.captureImages,
+            is DemoScreen.Scanning -> ScanningScreen(
+                screen = current,
                 onResult = { screen = DemoScreen.Result(it) },
                 onCancel = { screen = DemoScreen.Home }
             )
@@ -76,7 +86,7 @@ fun DemoApp() {
 }
 
 @Composable
-private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean) -> Unit) {
+private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean, DemoGeneration?) -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -87,9 +97,26 @@ private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean) -> Unit) {
         Spacer(Modifier.height(32.dp))
 
         var captureImages by remember { mutableStateOf(false) }
+        var generation by remember { mutableStateOf(DemoGeneration.DIGITAL) }
+
+        Text("¿Cuál cédula vas a escanear?", style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = generation == DemoGeneration.AMARILLA,
+                onClick = { generation = DemoGeneration.AMARILLA },
+                label = { Text("Amarilla") }
+            )
+            FilterChip(
+                selected = generation == DemoGeneration.DIGITAL,
+                onClick = { generation = DemoGeneration.DIGITAL },
+                label = { Text("Digital") }
+            )
+        }
+        Spacer(Modifier.height(12.dp))
 
         Button(
-            onClick = { onScan(ScanMode.ColombianId, DetectorFilter.ALL, captureImages) },
+            onClick = { onScan(ScanMode.ColombianId, DetectorFilter.ALL, captureImages, generation) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Escanear cédula")
@@ -97,15 +124,15 @@ private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean) -> Unit) {
         Spacer(Modifier.height(8.dp))
         Button(
             // Pasaporte: solo página de datos, sin captura de imágenes (1.0.0 §3).
-            onClick = { onScan(ScanMode.Passport, DetectorFilter.ALL, false) },
+            onClick = { onScan(ScanMode.Passport, DetectorFilter.ALL, false, null) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Escanear pasaporte")
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.PDF417_ONLY, captureImages) }) { Text("Solo PDF417") }
-            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.MRZ_ONLY, captureImages) }) { Text("Solo MRZ") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.PDF417_ONLY, captureImages, generation) }) { Text("Solo PDF417") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.MRZ_ONLY, captureImages, generation) }) { Text("Solo MRZ") }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -140,6 +167,73 @@ private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean) -> Unit) {
                 "adb logcat -s ColombianIdScan",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary
+            )
+        }
+    }
+}
+
+/**
+ * Wraps the library's scanner with the demo's ghost guidance: a
+ * wireframe of the side to present, drawn inside the same card window
+ * the library overlay cuts (85% width, ID-1 aspect, centered). It
+ * fades out as soon as the gate sees a document, and swaps front→back
+ * when the flow flips — both signals come from the library's public
+ * callbacks (onGateHint / onCapturePhase).
+ */
+@Composable
+private fun ScanningScreen(
+    screen: DemoScreen.Scanning,
+    onResult: (ScanCapture) -> Unit,
+    onCancel: () -> Unit
+) {
+    val twoSided = screen.captureImages && screen.mode == ScanMode.ColombianId
+    var phase by remember {
+        mutableStateOf(if (twoSided) CapturePhase.FRONT else CapturePhase.BACK)
+    }
+    var hint by remember { mutableStateOf<GateHint?>(null) }
+
+    Box(Modifier.fillMaxSize()) {
+        IdScannerScreen(
+            mode = screen.mode,
+            detectorFilter = screen.filter,
+            captureImages = screen.captureImages,
+            onGateHint = { hint = it },
+            onCapturePhase = { newPhase ->
+                phase = newPhase
+                hint = null // fresh side, show the ghost again
+            },
+            onResult = onResult,
+            onCancel = onCancel
+        )
+
+        val ghost = screen.generation?.let { generation ->
+            when (generation to phase) {
+                DemoGeneration.AMARILLA to CapturePhase.FRONT -> R.drawable.cedula_amarilla_front
+                DemoGeneration.AMARILLA to CapturePhase.BACK -> R.drawable.cedula_amarilla_back
+                DemoGeneration.DIGITAL to CapturePhase.FRONT -> R.drawable.cedula_digital_front
+                else -> R.drawable.cedula_digital_back
+            }
+        }
+        if (ghost != null) {
+            // Strong while the user is aiming; nearly gone once the gate
+            // has a candidate, so it never competes with the document.
+            val alpha by animateFloatAsState(
+                targetValue = when (hint) {
+                    null, GateHint.NO_DOCUMENT -> 0.45f
+                    GateHint.PASS -> 0f
+                    else -> 0.12f
+                },
+                label = "ghostAlpha"
+            )
+            Image(
+                painter = painterResource(ghost),
+                contentDescription = null,
+                alpha = alpha,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(0.85f)
+                    .aspectRatio(85.6f / 54f)
             )
         }
     }

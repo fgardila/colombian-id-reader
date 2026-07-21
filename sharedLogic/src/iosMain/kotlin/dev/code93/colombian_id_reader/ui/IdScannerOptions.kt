@@ -1,5 +1,6 @@
 package dev.code93.colombian_id_reader.ui
 
+import dev.code93.colombian_id_reader.model.CapturePhase
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.ScanMode
@@ -37,6 +38,13 @@ public class IdScannerOptions {
 
     /** Capture-gate framing hints, for clients with their own guidance UI. */
     public var onGateHint: ((GateHint) -> Unit)? = null
+
+    /**
+     * Fired on the FRONT → BACK transition of the two-side flow (main
+     * queue), for clients drawing their own side guidance — e.g. a
+     * ghost of the document face. See [CapturePhase].
+     */
+    public var onCapturePhase: ((CapturePhase) -> Unit)? = null
 
     /** UI strings; Spanish defaults (a static framework has no bundle). */
     public var texts: IdScannerTexts = IdScannerTexts()

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dev.code93.colombian_id_reader.model.CapturePhase
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.ScanCapture
@@ -70,6 +71,12 @@ fun IdScannerScreen(
     detectorFilter: DetectorFilter = DetectorFilter.ALL,
     captureImages: Boolean = false,
     onGateHint: ((GateHint) -> Unit)? = null,
+    /**
+     * Fired on the FRONT → BACK transition of the two-side flow, for
+     * clients drawing their own side guidance (e.g. a ghost of the
+     * document face). See [CapturePhase] for the initial state rule.
+     */
+    onCapturePhase: ((CapturePhase) -> Unit)? = null,
     onResult: (ScanCapture) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -90,7 +97,9 @@ fun IdScannerScreen(
     BackHandler(onBack = onCancel)
 
     if (hasPermission) {
-        ScannerContent(mode, detectorFilter, captureImages, onGateHint, onResult, onCancel)
+        ScannerContent(
+            mode, detectorFilter, captureImages, onGateHint, onCapturePhase, onResult, onCancel
+        )
     } else {
         PermissionRationale(
             onRequest = { launcher.launch(Manifest.permission.CAMERA) },
@@ -105,6 +114,7 @@ private fun ScannerContent(
     detectorFilter: DetectorFilter,
     captureImages: Boolean,
     onGateHint: ((GateHint) -> Unit)?,
+    onCapturePhase: ((CapturePhase) -> Unit)?,
     onResult: (ScanCapture) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -137,6 +147,7 @@ private fun ScannerContent(
                     frontPhase = false
                     showFlip = true
                     hint = null // back side starts with fresh guidance
+                    onCapturePhase?.invoke(CapturePhase.BACK)
                 }
             }
         )

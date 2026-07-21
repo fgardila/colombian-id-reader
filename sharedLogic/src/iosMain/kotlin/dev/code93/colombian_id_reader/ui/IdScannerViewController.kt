@@ -2,6 +2,7 @@
 
 package dev.code93.colombian_id_reader.ui
 
+import dev.code93.colombian_id_reader.model.CapturePhase
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
 import dev.code93.colombian_id_reader.model.ScanCapture
@@ -152,6 +153,7 @@ internal class IdScannerViewController(
                 if (phase == CaptureFlowController.Phase.BACK) {
                     overlay?.setInstruction(texts.instructionFlip)
                     overlay?.setHighlighted(true)
+                    options.onCapturePhase?.invoke(CapturePhase.BACK)
                 }
             }
         )

@@ -235,6 +235,12 @@ During the front phase the recognizers never run — including the iOS PDF417
 metadata leg, which would otherwise read the back's barcode while the user
 is still showing the front.
 
+Clients with their own guidance UI observe the FRONT → BACK transition via
+the public `onCapturePhase` callback (`CapturePhase`, the same pattern as
+`onGateHint`); the demo apps use it to draw a ghost wireframe of the side
+to present inside the card window, faded out once the gate sees a
+document.
+
 ---
 
 ## 6. Front validation: name cross-check

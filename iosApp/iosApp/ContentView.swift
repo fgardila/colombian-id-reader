@@ -1,11 +1,22 @@
 import SwiftUI
 import SharedLogic
 
+/// Which cédula generation the demo user says they hold — drives the
+/// ghost wireframe only; the scanner itself decides by evidence.
+private enum DemoGeneration: String, CaseIterable, Identifiable {
+    case amarilla = "Amarilla"
+    case digital = "Digital"
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @State private var isScanning = false
     @State private var selectedMode: ScanMode = ScanModeColombianId.shared
     @State private var selectedFilter: DetectorFilter = .all
     @State private var captureImages = false
+    @State private var generation: DemoGeneration = .digital
+    @State private var scanPhase: CapturePhase = .back
+    @State private var gateHint: GateHint?
     @State private var diagnostics = false
     @State private var capture: ScanCapture?
 
@@ -32,10 +43,16 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
+            Picker("¿Cuál cédula vas a escanear?", selection: $generation) {
+                ForEach(DemoGeneration.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 280)
+
             Button("Escanear cédula") {
                 selectedMode = ScanModeColombianId.shared
                 selectedFilter = .all
-                isScanning = true
+                startScan()
             }
             .buttonStyle(.borderedProminent)
 
@@ -43,7 +60,7 @@ struct ContentView: View {
                 // Pasaporte: solo página de datos, sin captura (1.0.0 §3).
                 selectedMode = ScanModePassport.shared
                 selectedFilter = .all
-                isScanning = true
+                startScan()
             }
             .buttonStyle(.borderedProminent)
 
@@ -51,12 +68,12 @@ struct ContentView: View {
                 Button("Solo PDF417") {
                     selectedMode = ScanModeColombianId.shared
                     selectedFilter = .pdf417Only
-                    isScanning = true
+                    startScan()
                 }
                 Button("Solo MRZ") {
                     selectedMode = ScanModeColombianId.shared
                     selectedFilter = .mrzOnly
-                    isScanning = true
+                    startScan()
                 }
             }
             .buttonStyle(.bordered)
@@ -72,17 +89,61 @@ struct ContentView: View {
         }
         .padding(32)
         .fullScreenCover(isPresented: $isScanning) {
-            ScannerView(
-                mode: selectedMode,
-                detectorFilter: selectedFilter,
-                captureImages: selectedMode is ScanModeColombianId ? captureImages : false,
-                onResult: { capture in
-                    self.capture = capture
-                    isScanning = false
-                },
-                onCancel: { isScanning = false }
-            )
-            .ignoresSafeArea()
+            ZStack {
+                ScannerView(
+                    mode: selectedMode,
+                    detectorFilter: selectedFilter,
+                    captureImages: selectedMode is ScanModeColombianId ? captureImages : false,
+                    onGateHint: { gateHint = $0 },
+                    onCapturePhase: { phase in
+                        scanPhase = phase
+                        gateHint = nil // fresh side, show the ghost again
+                    },
+                    onResult: { capture in
+                        self.capture = capture
+                        isScanning = false
+                    },
+                    onCancel: { isScanning = false }
+                )
+                .ignoresSafeArea()
+
+                // Ghost guidance: wireframe of the side to present, in
+                // the same card window the library overlay cuts (85%
+                // width, ID-1 aspect, centered). Fades once the gate
+                // sees a document.
+                if selectedMode is ScanModeColombianId {
+                    Image(ghostImageName)
+                        .resizable()
+                        .aspectRatio(85.6 / 54, contentMode: .fit)
+                        .frame(maxWidth: UIScreen.main.bounds.width * 0.85)
+                        .opacity(ghostOpacity)
+                        .animation(.easeInOut(duration: 0.3), value: ghostOpacity)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+    }
+
+    private func startScan() {
+        scanPhase = (selectedMode is ScanModeColombianId && captureImages) ? .front : .back
+        gateHint = nil
+        isScanning = true
+    }
+
+    private var ghostImageName: String {
+        switch (generation, scanPhase) {
+        case (.amarilla, .front): return "CedulaAmarillaFront"
+        case (.amarilla, _): return "CedulaAmarillaBack"
+        case (.digital, .front): return "CedulaDigitalFront"
+        case (.digital, _): return "CedulaDigitalBack"
+        }
+    }
+
+    private var ghostOpacity: Double {
+        switch gateHint {
+        case nil, GateHint.noDocument: return 0.45
+        case GateHint.pass: return 0
+        default: return 0.12
         }
     }
 }
