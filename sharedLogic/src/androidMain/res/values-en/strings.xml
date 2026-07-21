@@ -12,4 +12,6 @@
     <string name="colombian_id_scanner_instruction_passport">Present the passport data page</string>
     <string name="colombian_id_scanner_instruction_front">Show the front of the document</string>
     <string name="colombian_id_scanner_instruction_flip">Now flip the document</string>
+    <string name="colombian_id_scanner_flash_on">Turn flashlight on</string>
+    <string name="colombian_id_scanner_flash_off">Turn flashlight off</string>
 </resources>

@@ -9,9 +9,13 @@ import platform.AVFoundation.AVCaptureMetadataOutput
 import platform.AVFoundation.AVCaptureSession
 import platform.AVFoundation.AVCaptureSessionPreset1920x1080
 import platform.AVFoundation.AVCaptureSessionPreset3840x2160
+import platform.AVFoundation.AVCaptureTorchModeOff
+import platform.AVFoundation.AVCaptureTorchModeOn
 import platform.AVFoundation.AVCaptureVideoDataOutput
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVMetadataObjectTypePDF417Code
+import platform.AVFoundation.hasTorch
+import platform.AVFoundation.torchMode
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_queue_create
 
@@ -37,6 +41,23 @@ internal class IdCaptureSession(
         dispatch_queue_create("dev.code93.colombian_id_reader.capture", attr = null)
 
     private var configured = false
+    private var device: AVCaptureDevice? = null // session queue only
+
+    /**
+     * Torch for dark environments. Serialized on the session queue; a
+     * device without a torch (or none at all — simulator) is a no-op.
+     * AVFoundation turns the lamp off itself when the session stops.
+     */
+    fun setTorch(on: Boolean) {
+        dispatch_async(sessionQueue) {
+            val target = device ?: return@dispatch_async
+            if (!target.hasTorch) return@dispatch_async
+            if (target.lockForConfiguration(null)) {
+                target.torchMode = if (on) AVCaptureTorchModeOn else AVCaptureTorchModeOff
+                target.unlockForConfiguration()
+            }
+        }
+    }
 
     /** Configure on first call, then start. Work hops to the session queue. */
     fun start() {
@@ -69,6 +90,7 @@ internal class IdCaptureSession(
         val input = device?.let { AVCaptureDeviceInput.deviceInputWithDevice(it, error = null) }
         if (input != null && session.canAddInput(input)) {
             session.addInput(input)
+            this.device = device
         }
 
         // videoSettings left at default: modern devices already deliver

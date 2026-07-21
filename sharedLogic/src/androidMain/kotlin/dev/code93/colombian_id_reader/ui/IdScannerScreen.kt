@@ -5,9 +5,13 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -122,6 +128,8 @@ private fun ScannerContent(
     val executor = remember { Executors.newSingleThreadExecutor() }
     val detectors = remember { MlKitDetectors() }
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var torchOn by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf<GateHint?>(null) }
     val twoSided = captureImages && mode == ScanMode.ColombianId
     var frontPhase by remember { mutableStateOf(twoSided) }
@@ -173,7 +181,10 @@ private fun ScannerContent(
                         previewView = previewView,
                         analyzer = analyzer,
                         analysisExecutor = executor
-                    ) { provider = it }
+                    ) { boundProvider, boundCamera ->
+                        provider = boundProvider
+                        camera = boundCamera
+                    }
                 }
             }
         )
@@ -188,6 +199,39 @@ private fun ScannerContent(
             highlight = hint == GateHint.PASS || showFlip,
             onCancel = onCancel
         )
+
+        // Torch toggle for dark environments — only when the device
+        // actually has a flash unit.
+        if (camera?.cameraInfo?.hasFlashUnit() == true) {
+            IconButton(
+                onClick = {
+                    torchOn = !torchOn
+                    camera?.cameraControl?.enableTorch(torchOn)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .safeDrawingPadding()
+                    .padding(8.dp)
+            ) {
+                Image(
+                    painter = painterResource(
+                        if (torchOn) {
+                            R.drawable.colombian_id_scanner_flash_off
+                        } else {
+                            R.drawable.colombian_id_scanner_flash_on
+                        }
+                    ),
+                    contentDescription = stringResource(
+                        if (torchOn) {
+                            R.string.colombian_id_scanner_flash_off
+                        } else {
+                            R.string.colombian_id_scanner_flash_on
+                        }
+                    ),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
     }
 
     DisposableEffect(Unit) {

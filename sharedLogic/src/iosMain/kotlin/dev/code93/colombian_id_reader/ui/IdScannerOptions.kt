@@ -56,6 +56,9 @@ public class IdScannerTexts {
     public var instructionPassport: String = "Presente la página de datos del pasaporte"
     public var instructionFront: String = "Muestre el frente del documento"
     public var instructionFlip: String = "Ahora voltee el documento"
+    /** Accessibility labels for the torch toggle. */
+    public var flashOn: String = "Encender linterna"
+    public var flashOff: String = "Apagar linterna"
     public var cancel: String = "Cancelar"
     public var permissionRationale: String =
         "Para escanear el documento se necesita acceso a la cámara. La imagen se " +

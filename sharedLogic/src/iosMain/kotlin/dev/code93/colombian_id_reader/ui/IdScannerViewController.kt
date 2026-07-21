@@ -21,6 +21,7 @@ import platform.AVFoundation.AVCaptureVideoPreviewLayer
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.authorizationStatusForMediaType
+import platform.AVFoundation.hasTorch
 import platform.AVFoundation.requestAccessForMediaType
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSSelectorFromString
@@ -34,8 +35,10 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIControlEventTouchUpInside
 import platform.UIKit.UIControlStateNormal
 import platform.UIKit.UIFont
+import platform.UIKit.UIImage
 import platform.UIKit.UILabel
 import platform.UIKit.UIViewController
+import platform.UIKit.accessibilityLabel
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
@@ -69,6 +72,8 @@ internal class IdScannerViewController(
     private var overlay: ScannerOverlayView? = null
 
     private val cancelButton = UIButton.buttonWithType(UIButtonTypeSystem)
+    private val flashButton = UIButton.buttonWithType(UIButtonTypeSystem)
+    private var torchOn = false
     private val rationaleLabel = UILabel()
     private val grantButton = UIButton.buttonWithType(UIButtonTypeSystem)
 
@@ -104,6 +109,9 @@ internal class IdScannerViewController(
     override fun viewDidDisappear(animated: Boolean) {
         super.viewDidDisappear(animated)
         captureSession?.stop()
+        // Stopping the session turns the lamp off; keep the UI honest.
+        torchOn = false
+        updateFlashButton()
     }
 
     override fun viewDidLayoutSubviews() {
@@ -119,6 +127,13 @@ internal class IdScannerViewController(
         val cancelHeight = cancelButton.bounds.useContents { size.height }
         val cancelWidth = cancelButton.bounds.useContents { size.width }
         cancelButton.setFrame(CGRectMake(16.0, safeTop + 8.0, cancelWidth, cancelHeight))
+
+        flashButton.sizeToFit()
+        val flashWidth = flashButton.bounds.useContents { size.width }
+        val flashHeight = flashButton.bounds.useContents { size.height }
+        flashButton.setFrame(
+            CGRectMake(width - 16.0 - flashWidth, safeTop + 8.0, flashWidth, flashHeight)
+        )
 
         rationaleLabel.setFrame(CGRectMake(32.0, height / 2.0 - 120.0, width - 64.0, 160.0))
         grantButton.sizeToFit()
@@ -180,8 +195,35 @@ internal class IdScannerViewController(
         previewLayer = layer
         overlay = overlayView
 
+        // Torch toggle for dark environments — only when the device
+        // actually has one (simulator and some iPads do not).
+        val hasTorch = AVCaptureDevice
+            .defaultDeviceWithMediaType(AVMediaTypeVideo)?.hasTorch == true
+        if (hasTorch) {
+            flashButton.tintColor = UIColor.whiteColor
+            updateFlashButton()
+            flashButton.addTarget(
+                this, NSSelectorFromString("flashTapped"), UIControlEventTouchUpInside
+            )
+            view.addSubview(flashButton)
+        }
+
         view.setNeedsLayout()
         session.start()
+    }
+
+    private fun updateFlashButton() {
+        val symbol = if (torchOn) "bolt.slash.fill" else "bolt.fill"
+        flashButton.setImage(UIImage.systemImageNamed(symbol), forState = UIControlStateNormal)
+        flashButton.accessibilityLabel = if (torchOn) texts.flashOff else texts.flashOn
+    }
+
+    @ObjCAction
+    internal fun flashTapped() {
+        torchOn = !torchOn
+        captureSession?.setTorch(torchOn)
+        updateFlashButton()
+        view.setNeedsLayout()
     }
 
     private fun showDenied() {
