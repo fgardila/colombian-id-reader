@@ -12,4 +12,6 @@
     <string name="colombian_id_scanner_hint_hold_steady">Mantenga el dispositivo firme</string>
     <string name="colombian_id_scanner_hint_pass">Leyendo…</string>
     <string name="colombian_id_scanner_instruction_passport">Presente la página de datos del pasaporte</string>
+    <string name="colombian_id_scanner_instruction_front">Muestre el frente del documento</string>
+    <string name="colombian_id_scanner_instruction_flip">Ahora voltee el documento</string>
 </resources>

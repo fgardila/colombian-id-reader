@@ -38,13 +38,15 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
-import dev.code93.colombian_id_reader.model.ScannedDocument
+import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
+import dev.code93.colombian_id_reader.scan.CaptureFlowController
 import dev.code93.colombian_id_reader.scan.ScanDebug
 import dev.code93.colombian_id_reader.scanner.IdFrameAnalyzer
 import dev.code93.colombian_id_reader.scanner.MlKitDetectors
 import dev.code93.colombian_id_reader.scanner.bindScanner
 import dev.code93.colombian_id_reader.sharedLogic.R
+import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 
 /**
@@ -54,7 +56,11 @@ import java.util.concurrent.Executors
  * for clients with their own guidance UI.
  *
  * Requests the camera permission itself and delivers exactly one
- * [ScannedDocument] via [onResult]. The library never persists, transmits or
+ * [ScanCapture] via [onResult]. With [captureImages] the scan becomes a
+ * front-then-back flow and the result carries [ScanCapture.images] and
+ * the name cross-check (ARCHITECTURE-1.0.0.md §5–6); leave it off and
+ * the flow, cost and latency are those of 0.3.0. Ignored in passport
+ * mode (data page only). The library never persists, transmits or
  * logs what the camera sees (§7). [detectorFilter] is a development
  * aid — leave it at [DetectorFilter.ALL] in production.
  */
@@ -62,8 +68,9 @@ import java.util.concurrent.Executors
 fun IdScannerScreen(
     mode: ScanMode = ScanMode.ColombianId,
     detectorFilter: DetectorFilter = DetectorFilter.ALL,
+    captureImages: Boolean = false,
     onGateHint: ((GateHint) -> Unit)? = null,
-    onResult: (ScannedDocument) -> Unit,
+    onResult: (ScanCapture) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
@@ -83,7 +90,7 @@ fun IdScannerScreen(
     BackHandler(onBack = onCancel)
 
     if (hasPermission) {
-        ScannerContent(mode, detectorFilter, onGateHint, onResult, onCancel)
+        ScannerContent(mode, detectorFilter, captureImages, onGateHint, onResult, onCancel)
     } else {
         PermissionRationale(
             onRequest = { launcher.launch(Manifest.permission.CAMERA) },
@@ -96,8 +103,9 @@ fun IdScannerScreen(
 private fun ScannerContent(
     mode: ScanMode,
     detectorFilter: DetectorFilter,
+    captureImages: Boolean,
     onGateHint: ((GateHint) -> Unit)?,
-    onResult: (ScannedDocument) -> Unit,
+    onResult: (ScanCapture) -> Unit,
     onCancel: () -> Unit
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -105,22 +113,42 @@ private fun ScannerContent(
     val detectors = remember { MlKitDetectors() }
     var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var hint by remember { mutableStateOf<GateHint?>(null) }
+    val twoSided = captureImages && mode == ScanMode.ColombianId
+    var frontPhase by remember { mutableStateOf(twoSided) }
+    var showFlip by remember { mutableStateOf(false) }
 
-    val analyzer = remember(mode, detectorFilter) {
+    val analyzer = remember(mode, detectorFilter, captureImages) {
         IdFrameAnalyzer(
             mode = mode,
             filter = detectorFilter,
             detectors = detectors,
-            onSuccess = { data ->
+            captureImages = captureImages,
+            onSuccess = { capture ->
                 // Stop frames at the source before handing the result over.
                 provider?.unbindAll()
-                onResult(data)
+                onResult(capture)
             },
             onHint = { newHint ->
                 hint = newHint
                 onGateHint?.invoke(newHint)
+            },
+            onPhase = { phase ->
+                if (phase == CaptureFlowController.Phase.BACK) {
+                    frontPhase = false
+                    showFlip = true
+                    hint = null // back side starts with fresh guidance
+                }
             }
         )
+    }
+
+    if (showFlip) {
+        // Hold the flip instruction long enough to be read before the
+        // gate hints for the back side take over.
+        LaunchedEffect(Unit) {
+            delay(1_800)
+            showFlip = false
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -138,10 +166,15 @@ private fun ScannerContent(
                 }
             }
         )
+        val instructionRes = when {
+            showFlip -> R.string.colombian_id_scanner_instruction_flip
+            frontPhase && hint == null -> R.string.colombian_id_scanner_instruction_front
+            else -> hint.instructionRes(mode)
+        }
         ScannerOverlay(
-            instruction = stringResource(hint.instructionRes(mode)),
+            instruction = stringResource(instructionRes),
             cancelLabel = stringResource(R.string.colombian_id_scanner_cancel),
-            highlight = hint == GateHint.PASS,
+            highlight = hint == GateHint.PASS || showFlip,
             onCancel = onCancel
         )
     }

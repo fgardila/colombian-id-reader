@@ -8,10 +8,11 @@ import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import dev.code93.colombian_id_reader.model.DetectorFilter
 import dev.code93.colombian_id_reader.model.GateHint
+import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.model.acceptedFormats
-import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.model.ScanResult
+import dev.code93.colombian_id_reader.scan.CaptureFlowController
 import dev.code93.colombian_id_reader.scan.CaptureGate
 import dev.code93.colombian_id_reader.scan.GateObservation
 import dev.code93.colombian_id_reader.scan.GateStats
@@ -27,17 +28,26 @@ import java.util.concurrent.atomic.AtomicBoolean
  * gate lets the expensive OCR leg run; the PDF417 leg stays hot — it is
  * cheap and self-validating.
  *
+ * With [captureImages] (ARCHITECTURE-1.0.0.md §5) the scan becomes a
+ * two-side flow: a FRONT phase driven by the gate alone (retain frame +
+ * best-effort OCR, then flip guidance via [onPhase]), then the BACK
+ * phase above. Since `analyze()` is synchronous, the winning frame is
+ * still open when the parser succeeds — the JPEG is encoded right
+ * there, only ever for frames that produced something (§4.2–4.3).
+ *
  * Runs on a dedicated single-thread executor and blocks it until the
  * ML Kit tasks finish: with STRATEGY_KEEP_ONLY_LATEST that *is* the
  * throttling, and it guarantees the ImageProxy is only closed after
  * ML Kit is done with its buffer.
  */
 internal class IdFrameAnalyzer(
-    mode: ScanMode,
+    private val mode: ScanMode,
     filter: DetectorFilter,
     private val detectors: MlKitDetectors,
-    private val onSuccess: (ScannedDocument) -> Unit,
+    captureImages: Boolean = false,
+    private val onSuccess: (ScanCapture) -> Unit,
     private val onHint: (GateHint) -> Unit = {},
+    private val onPhase: (CaptureFlowController.Phase) -> Unit = {},
     private val mrzThrottleMs: Long = 250
 ) : ImageAnalysis.Analyzer {
 
@@ -48,10 +58,21 @@ internal class IdFrameAnalyzer(
     private var lastMrzAttemptAt = 0L
     private var lastHint: GateHint? = null
 
-    private val gate = CaptureGate(
-        accepts = mode.acceptedFormats,
-        stats = stats
-    )
+    // Passports stay data-page only (1.0.0 scope): no image capture.
+    private val effectiveCapture = captureImages && mode == ScanMode.ColombianId
+
+    init {
+        if (captureImages && !effectiveCapture) {
+            ScanDebug.log { "captureImages ignored: passport mode is data-only (1.0.0 §3)" }
+        }
+    }
+
+    private val flow = CaptureFlowController(effectiveCapture)
+
+    // Streak/tracking state belongs to one side: fresh gate per phase.
+    private var gate = newGate()
+
+    private fun newGate() = CaptureGate(accepts = mode.acceptedFormats, stats = stats)
 
     private val router = ScanFrameRouter<InputImage>(
         mode = mode,
@@ -78,14 +99,34 @@ internal class IdFrameAnalyzer(
             val rotation = proxy.imageInfo.rotationDegrees
             val input = InputImage.fromMediaImage(mediaImage, rotation)
 
-            val verdict = gate.evaluate(observe(proxy, input, rotation))
+            val observation = observe(proxy, input, rotation)
+            val verdict = gate.evaluate(observation)
             emitHint(verdict.hint)
-            stats.onOcrDecision(verdict.pass)
 
+            if (flow.phase == CaptureFlowController.Phase.FRONT) {
+                if (flow.shouldCaptureFront(verdict)) {
+                    // Same frame for image and OCR: proxy is still open.
+                    val frontJpeg = JpegEncoder.encode(proxy, observation.bbox)
+                    val frontLines = runBlocking { detectors.mrzLines(input) }
+                    flow.onFrontCaptured(frontJpeg, frontLines)
+                    gate = newGate()
+                    mainHandler.post {
+                        if (!delivered.get()) onPhase(CaptureFlowController.Phase.BACK)
+                    }
+                }
+                return // front frames never reach the recognizers
+            }
+
+            stats.onOcrDecision(verdict.pass)
             val result = runBlocking { router.process(input, allowOcr = verdict.pass) }
             if (result is ScanResult.Success && delivered.compareAndSet(false, true)) {
+                // Encode before analyze() returns — this IS the frame
+                // the data came from (§4.1), open until the finally.
+                val backJpeg =
+                    if (effectiveCapture) JpegEncoder.encode(proxy, observation.bbox) else null
                 ScanDebug.log { stats.summary() }
-                mainHandler.post { onSuccess(result.data) }
+                val capture = flow.assemble(result.data, backJpeg)
+                mainHandler.post { onSuccess(capture) }
             }
             // Error / null: expected on partial frames — keep scanning.
         } finally {

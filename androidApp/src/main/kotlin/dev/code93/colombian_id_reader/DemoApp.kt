@@ -1,5 +1,8 @@
 package dev.code93.colombian_id_reader
 
+import android.graphics.BitmapFactory
+import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import android.util.Log
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -19,14 +21,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import dev.code93.colombian_id_reader.model.DetectorFilter
+import dev.code93.colombian_id_reader.model.NameMatch
+import dev.code93.colombian_id_reader.model.ScanCapture
 import dev.code93.colombian_id_reader.model.ScanMode
 import dev.code93.colombian_id_reader.model.ScannedDocument
 import dev.code93.colombian_id_reader.scan.ScanDebug
@@ -34,8 +41,12 @@ import dev.code93.colombian_id_reader.ui.IdScannerScreen
 
 private sealed interface DemoScreen {
     data object Home : DemoScreen
-    data class Scanning(val mode: ScanMode, val filter: DetectorFilter) : DemoScreen
-    data class Result(val data: ScannedDocument) : DemoScreen
+    data class Scanning(
+        val mode: ScanMode,
+        val filter: DetectorFilter,
+        val captureImages: Boolean
+    ) : DemoScreen
+    data class Result(val capture: ScanCapture) : DemoScreen
 }
 
 @Composable
@@ -44,15 +55,20 @@ fun DemoApp() {
         var screen by remember { mutableStateOf<DemoScreen>(DemoScreen.Home) }
 
         when (val current = screen) {
-            is DemoScreen.Home -> HomeScreen(onScan = { mode, filter -> screen = DemoScreen.Scanning(mode, filter) })
+            is DemoScreen.Home -> HomeScreen(
+                onScan = { mode, filter, captureImages ->
+                    screen = DemoScreen.Scanning(mode, filter, captureImages)
+                }
+            )
             is DemoScreen.Scanning -> IdScannerScreen(
                 mode = current.mode,
                 detectorFilter = current.filter,
+                captureImages = current.captureImages,
                 onResult = { screen = DemoScreen.Result(it) },
                 onCancel = { screen = DemoScreen.Home }
             )
             is DemoScreen.Result -> ResultScreen(
-                data = current.data,
+                capture = current.capture,
                 onScanAgain = { screen = DemoScreen.Home }
             )
         }
@@ -60,7 +76,7 @@ fun DemoApp() {
 }
 
 @Composable
-private fun HomeScreen(onScan: (ScanMode, DetectorFilter) -> Unit) {
+private fun HomeScreen(onScan: (ScanMode, DetectorFilter, Boolean) -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -69,26 +85,39 @@ private fun HomeScreen(onScan: (ScanMode, DetectorFilter) -> Unit) {
         Text("colombian-id-reader", style = MaterialTheme.typography.headlineSmall)
         Text("Demo", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(32.dp))
+
+        var captureImages by remember { mutableStateOf(false) }
+
         Button(
-            onClick = { onScan(ScanMode.ColombianId, DetectorFilter.ALL) },
+            onClick = { onScan(ScanMode.ColombianId, DetectorFilter.ALL, captureImages) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Escanear cédula")
         }
         Spacer(Modifier.height(8.dp))
         Button(
-            onClick = { onScan(ScanMode.Passport, DetectorFilter.ALL) },
+            // Pasaporte: solo página de datos, sin captura de imágenes (1.0.0 §3).
+            onClick = { onScan(ScanMode.Passport, DetectorFilter.ALL, false) },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Escanear pasaporte")
         }
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.PDF417_ONLY) }) { Text("Solo PDF417") }
-            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.MRZ_ONLY) }) { Text("Solo MRZ") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.PDF417_ONLY, captureImages) }) { Text("Solo PDF417") }
+            OutlinedButton(onClick = { onScan(ScanMode.ColombianId, DetectorFilter.MRZ_ONLY, captureImages) }) { Text("Solo MRZ") }
         }
 
         Spacer(Modifier.height(24.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Switch(checked = captureImages, onCheckedChange = { captureImages = it })
+            Text("Capturar imágenes (frente y reverso)", style = MaterialTheme.typography.bodyMedium)
+        }
+
+        Spacer(Modifier.height(16.dp))
         // Herramienta de desarrollo: vuelca el diagnóstico del pipeline de
         // escaneo (incluye datos del documento) a Logcat, tag ColombianIdScan.
         var diagnostics by remember { mutableStateOf(ScanDebug.listener != null) }
@@ -117,7 +146,8 @@ private fun HomeScreen(onScan: (ScanMode, DetectorFilter) -> Unit) {
 }
 
 @Composable
-private fun ResultScreen(data: ScannedDocument, onScanAgain: () -> Unit) {
+private fun ResultScreen(capture: ScanCapture, onScanAgain: () -> Unit) {
+    val data = capture.document
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -149,10 +179,51 @@ private fun ResultScreen(data: ScannedDocument, onScanAgain: () -> Unit) {
             }
         }
 
+        capture.images?.let { images ->
+            Field(
+                "Verificación de nombres (frente vs. reverso)",
+                when (capture.nameMatch) {
+                    NameMatch.MATCH -> "Coinciden"
+                    NameMatch.MISMATCH -> "NO coinciden"
+                    NameMatch.NOT_CHECKED -> "No verificado"
+                }
+            )
+            images.front?.let { CapturedImage("Frente", it) }
+            CapturedImage("Reverso", images.back)
+        }
+
         Spacer(Modifier.height(24.dp))
         Button(onClick = onScanAgain, modifier = Modifier.fillMaxWidth()) {
             Text("Escanear otra")
         }
+    }
+
+    // Ciclo de vida §7: al salir de la pantalla las imágenes se
+    // desechan explícitamente — no deben quedar vivas en el heap.
+    DisposableEffect(capture) {
+        onDispose { capture.images?.dispose() }
+    }
+}
+
+@Composable
+private fun CapturedImage(label: String, jpeg: ByteArray) {
+    val bitmap = remember(jpeg) {
+        BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)?.asImageBitmap()
+    }
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = label,
+                modifier = Modifier.fillMaxWidth(),
+                contentScale = ContentScale.FillWidth
+            )
+        } else {
+            Text("(imagen no decodificable)", style = MaterialTheme.typography.bodySmall)
+        }
+        HorizontalDivider(Modifier.padding(top = 6.dp))
     }
 }
 

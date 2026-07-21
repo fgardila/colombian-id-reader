@@ -10,4 +10,6 @@
     <string name="colombian_id_scanner_hint_hold_steady">Hold the device steady</string>
     <string name="colombian_id_scanner_hint_pass">Reading…</string>
     <string name="colombian_id_scanner_instruction_passport">Present the passport data page</string>
+    <string name="colombian_id_scanner_instruction_front">Show the front of the document</string>
+    <string name="colombian_id_scanner_instruction_flip">Now flip the document</string>
 </resources>
